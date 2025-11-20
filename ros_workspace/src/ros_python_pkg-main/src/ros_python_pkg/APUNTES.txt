@@ -1,0 +1,5 @@
+En este proyecto tenemos un base_node.py que hace de nodo principal. En nodoGestos.py quiero que hagas el código para indicar que es un nodo ROS, se suscriba a una cámara y publique la información (devuelve un string).
+Explica los pasos que haces, como se indica que es un nodo ROS, como se suscribe a la camara y como se publica algo.
+
+PREGUNTAS
+, la camara esta abstraida como un fichero. Como se abstrae? se hace solo o hay q escribir codigo
