@@ -1,0 +1,14 @@
+<launch>
+    <arg name="video_device" default="/dev/video0"/>
+    <arg name="namespace" default="cam1"/>
+    <!-- Cámara 1 -->
+    <group ns="$(arg namespace)">
+        <node pkg="usb_cam" type="usb_cam_node" name="usb_cam1">
+        <param name="video_device" value="$(arg video_device)"/>
+        <param name="frame_id" value="cam1"/>
+        <param name="io_method" value="mmap"/>
+        <param name="image_width" value="640"/>
+        <param name="image_height" value="480"/>
+        </node>
+    </group>
+</launch>

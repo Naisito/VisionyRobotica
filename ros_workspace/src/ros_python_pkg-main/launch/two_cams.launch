@@ -1,0 +1,25 @@
+<launch>
+
+  <!-- Cámara 1 -->
+  <group ns="cam1">
+    <node pkg="usb_cam" type="usb_cam_node" name="usb_cam1">
+      <param name="video_device" value="/dev/video0"/>
+      <param name="frame_id" value="cam1"/>
+      <param name="io_method" value="mmap"/>
+      <param name="image_width" value="640"/>
+      <param name="image_height" value="480"/>
+    </node>
+  </group>
+
+  <!-- Cámara 2 -->
+  <group ns="cam2">
+    <node pkg="usb_cam" type="usb_cam_node" name="usb_cam2">
+      <param name="video_device" value="/dev/video2"/>
+      <param name="frame_id" value="cam2"/>
+      <param name="io_method" value="mmap"/>
+      <param name="image_width" value="640"/>
+      <param name="image_height" value="480"/>
+    </node>
+  </group>
+
+</launch>

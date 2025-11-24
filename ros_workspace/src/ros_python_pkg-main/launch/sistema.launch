@@ -1,0 +1,11 @@
+<launch>
+    <include file="$(find ros_python_pkg)/launch/camera.launch">
+        <arg name="video_device" value="/dev/video0"/>
+        <arg name="namespace" value="cam1"/>
+    </include>
+
+    <include file="$(find ros_python_pkg)/launch/camera.launch">
+        <arg name="video_device" value="/dev/video2"/>
+        <arg name="namespace" value="cam2"/>
+    </include>
+</launch>
