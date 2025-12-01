@@ -10,44 +10,50 @@ from numpy import ndarray
 from copy import deepcopy
 from time import time, sleep
 
-class NodoObjetos:
+class NodoCentral:
     def __init__(self) -> None:
-        rospy.init_node('nodo_objetos', anonymous=False)
+        rospy.init_node('nodo_central', anonymous=False)
         # Publicador y bridge
-        self.pub = rospy.Publisher("objetos", String, queue_size=10)
-        self.bridge = CvBridge()
-
-        # Suscriptor a la cámara
-        rospy.Subscriber('/gesto', String, queue_size=10)
-        self.gesto = None
-        rospy.wait_for_message('/gesto', String)
         
-    def _process_image(self, img: ndarray) -> str:
-        # Logica opencv
-        pass
-    
+        self.pub1 = rospy.Publisher("nc_gestos", String, queue_size=10)
+                
+        self.pub2 = rospy.Publisher("nc_obj", String, queue_size=10)
+
+        #self.pub3 = rospy.Publisher("nc-rob", String, queue_size=10)
+        
+        # Suscriptor 
+        rospy.Subscriber('gesto', String, self.callbackGesto, queue_size=10)
+        self.gesto = None
+        rospy.wait_for_message('gesto', String)
+        
+        
+    '''
     def procesar_imagenes(self, img: ndarray, tiempo: float=2) -> str:
         inicio = time()
         resultado = "HOLA"
-        #resultados = []
+        resultados = []
         
         #while time() - inicio < tiempo:
         #    resultados.append(self._process_image(img))
-        #    sleep(0.03)
+            sleep(0.03)
             
         return resultado
+    '''
     
+    def callbackGesto(self,msg: String):
+        self.pub1.publish(msg)
+        
     def start(self) -> None:
         while not rospy.is_shutdown():
-            while self.img is None:
+            while self.gesto is None:
                 sleep(0.01)
             imagen = deepcopy(self.img)
-            self.img = None
+            self.gesto = None
             # resultado = self._process_image(imagen)
-            resultado = self.procesar_imagenes(imagen)
+            resultado = 'HOLA'
             self.pub.publish(String(data=resultado))
 
 
 if __name__ == '__main__':
-    node = NodoObjetos()
+    node = NodoCentral()
     node.start()

@@ -25,10 +25,14 @@ class NodoGestos:
         self.pub = rospy.Publisher("gesto", String, queue_size=10)
         self.bridge = CvBridge()
 
-        # Suscriptor a la cámara
+        # Suscriptor a la cámara usb-cam/image_raw/usb_cam2
         rospy.Subscriber('/usb_cam/image_raw', Image, self._image_cb, queue_size=1)
         self.img = None
         rospy.wait_for_message('/usb_cam/image_raw', Image)
+        
+        rospy.Subscriber('nc_gestos', String, self.callbackGesto, queue_size=10)
+        self.gesto = None
+        rospy.wait_for_message('gesto', String)
         
         # Estado para detección de movimiento
         self._prev_gray = None
@@ -36,9 +40,6 @@ class NodoGestos:
     def _image_cb(self, msg: Image) -> None:
         self.img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         
-    def _process_image(self, img: ndarray) -> str:
-        # Logica opencv
-        pass
     
     def count_fingers(self, contour, roi_frame):
 
@@ -90,7 +91,7 @@ class NodoGestos:
 
         return finger_count, solidity
     
-    def draw_text_with_outline(img, text, org, font, font_scale, color, thickness, outline_color=(0,0,0), outline_thickness=3):
+    def draw_text_with_outline(self, img, text, org, font, font_scale, color, thickness, outline_color=(0,0,0), outline_thickness=3):
         cv2.putText(img, text, org, font, font_scale, outline_color, outline_thickness, cv2.LINE_AA)
         cv2.putText(img, text, org, font, font_scale, color, thickness, cv2.LINE_AA)
 
@@ -149,12 +150,13 @@ class NodoGestos:
         ty = y + pad_y
         for t in lines:
             sz = cv2.getTextSize(t, font, fs, th)[0]
-            #self.draw_text_with_outline(frame, t, (x + pad_x, ty + sz[1]), font, fs, (255, 255, 255), th)
+            self.draw_text_with_outline(frame, t, (x + pad_x, ty + sz[1]), font, fs, (255, 255, 255), th)
             ty += sz[1] + line_gap
     
-    def procesar_imagenes(self, img: ndarray, tiempo: float=2) -> str:
+    def procesar_imagenes(self, img: ndarray, tiempo: float=2):
         inicio = time()
-        resultado = "HOLA"
+        confirmado = False
+        resultado = "Esperando"
         
         frame = cv2.flip(img, 1)
         frame_h, frame_w = frame.shape[:2]
@@ -218,7 +220,7 @@ class NodoGestos:
                 self.gesture_confirmed = False
             else:
                 self.stable_frames += 1
-                if self.stable_frames >= self.STABLE_N:
+                if self.stable_frames == self.STABLE_N:
                     self.gesture_confirmed = True
         else:
             self.stable_target = None
@@ -228,26 +230,35 @@ class NodoGestos:
         # Interfaz (arriba izq)
         panel_lines = []
         if display_count is not None:
+            
             panel_lines.append(f"Dedos: {display_count}")
         panel_lines.append(f"Solidez: {solidity:.2f}")
         panel_lines.append(f"Estable: {min(self.stable_frames, self.STABLE_N)}/{self.STABLE_N}")
         if self.gesture_confirmed and self.stable_target is not None:
-
+            if display_count == 1:
+                resultado = 'Plastico'
+            elif display_count == 2:
+                resultado = 'Carton'
+            elif display_count == 3:
+                resultado = 'Lata'
+            else:
+                resultado = 'Nada'
             panel_lines.append("Gesto confirmado")
+            confirmado = True
+            self.pub.publish(String(data=resultado))
+            self.stable_frames = 0
+            self.gesture_confirmed = False
+        
+            
 
         roi_rect = (roi_x, roi_y, self.roi_w, self.roi_h)
         self.draw_info_panel(frame_copy, panel_lines, roi_rect=roi_rect)
         
-        if display_count == 1:
-            resultado = 'Plastico'
-        elif display_count == 2:
-            resultado = 'Carton'
-        elif display_count == 3:
-            resultado = 'Lata'
-        else:
-            resultado = 'Nada'
+        cv2.imshow("Deteccion de dedos", frame_copy)
         
-        return resultado
+        cv2.waitKey(1)
+        return resultado, confirmado
+
     
     def start(self) -> None:
         while not rospy.is_shutdown():
@@ -256,8 +267,9 @@ class NodoGestos:
             imagen = deepcopy(self.img)
             self.img = None
             # resultado = self._process_image(imagen)
-            resultado = self.procesar_imagenes(imagen)
-            self.pub.publish(String(data=resultado))
+            resultado, confirmado = self.procesar_imagenes(imagen)
+            #if confirmado:
+                
 
 
 if __name__ == '__main__':
