@@ -9,6 +9,10 @@
       <param name="image_width" value="640"/>
       <param name="image_height" value="480"/>
     </node>
+    <node name="image_view" pkg="image_view" type="image_view" respawn="false" output="screen">
+      <remap from="image" to="/cam1/usb_cam1/image_raw"/>
+      <param name="autosize" value="true" />
+    </node>
   </group>
 
   <!-- Cámara 2 -->
@@ -19,6 +23,10 @@
       <param name="io_method" value="mmap"/>
       <param name="image_width" value="640"/>
       <param name="image_height" value="480"/>
+    </node>
+    <node name="image_view" pkg="image_view" type="image_view" respawn="false" output="screen">
+      <remap from="image" to="/cam2/usb_cam2/image_raw"/>
+      <param name="autosize" value="true" />
     </node>
   </group>
 

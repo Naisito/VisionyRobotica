@@ -10,7 +10,8 @@ from math import pi, tau, dist, fabs, cos
 from std_msgs.msg import String
 from moveit_commander.conversions import pose_to_list
 from typing import List
-from geometry_msgs.msg import Pose, PoseStamped
+from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
+from tf.transformations import quaternion_from_euler
 from control_msgs.msg import GripperCommandAction, GripperCommandGoal, GripperCommandResult
 from actionlib import SimpleActionClient
 
@@ -86,7 +87,27 @@ if __name__ == '__main__':
     # time.sleep(5)
     # art1 = [2.103938102722168, -1.9056993923582972, 1.328787628804342, -0.9948828977397461, -1.5678799788104456, 0.39615392684936523]
     # node.mover_articulaciones(art1)
-    
-    basura_lata = node.articulaciones_actuales()
-    print(basura_lata)
+    suelo = node.añadir_suelo()
+    """
+    basura = node.pose_actual()   
+    basura.position.x = -0.01652226419654452
+    basura.position.y = 0.33709295103918974
+    basura.position.z -= .3
+    # pinza en posición neutra
+    basura.orientation.x = 0
+    basura.orientation.y = 0
+    basura.orientation.z = 0
+    basura.orientation.w = 1
+    """
+    x,y,z,w = quaternion_from_euler(ai=90, aj=0, ak=0) # para hacer rotaciones raras
+    basura = Pose(position= Point(x=-0.01652226419654452,
+                                  y =0.33709295103918974,
+                                  z= .3),
+                  orientation = Quaternion(x = 0,
+                                           y= 0,
+                                           z=0,
+                                           w=1))
+    # 32/24/12
+    node.añadir_caja_a_escena_de_planificacion(basura,"basura",(.24,.36,.12))
+   
     

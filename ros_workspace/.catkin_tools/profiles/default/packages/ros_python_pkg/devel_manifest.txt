@@ -1,0 +1,5 @@
+ros_python_pkg-main
+/home/laboratorio/ros_workspace/devel/.private/ros_python_pkg/share/ros_python_pkg/cmake/ros_python_pkgConfig-version.cmake /home/laboratorio/ros_workspace/devel/share/ros_python_pkg/cmake/ros_python_pkgConfig-version.cmake
+/home/laboratorio/ros_workspace/devel/.private/ros_python_pkg/share/ros_python_pkg/cmake/ros_python_pkgConfig.cmake /home/laboratorio/ros_workspace/devel/share/ros_python_pkg/cmake/ros_python_pkgConfig.cmake
+/home/laboratorio/ros_workspace/devel/.private/ros_python_pkg/lib/python3/dist-packages/ros_python_pkg-main/__init__.py /home/laboratorio/ros_workspace/devel/lib/python3/dist-packages/ros_python_pkg-main/__init__.py
+/home/laboratorio/ros_workspace/devel/.private/ros_python_pkg/lib/pkgconfig/ros_python_pkg.pc /home/laboratorio/ros_workspace/devel/lib/pkgconfig/ros_python_pkg.pc
