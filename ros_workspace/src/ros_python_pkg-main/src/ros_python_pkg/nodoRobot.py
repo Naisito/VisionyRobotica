@@ -89,20 +89,24 @@ if __name__ == '__main__':
     # node.mover_articulaciones(art1)
     suelo = node.añadir_suelo()
     """
-    basura = node.pose_actual()   
-    basura.position.x = -0.01652226419654452
-    basura.position.y = 0.33709295103918974
-    basura.position.z -= .3
+    basura = node.pose_actual()  
+    
+    # basura.position.x = 
+    # basura.position.y = 
+    # basura.position.z -= 
+    
     # pinza en posición neutra
     basura.orientation.x = 0
     basura.orientation.y = 0
     basura.orientation.z = 0
     basura.orientation.w = 1
-    """
+    print(basura)
+    
     x,y,z,w = quaternion_from_euler(ai=90, aj=0, ak=0) # para hacer rotaciones raras
+    """
     basura = Pose(position= Point(x=-0.01652226419654452,
                                   y =0.33709295103918974,
-                                  z= .3),
+                                  z= .05), # .3
                   orientation = Quaternion(x = 0,
                                            y= 0,
                                            z=0,
@@ -110,4 +114,20 @@ if __name__ == '__main__':
     # 32/24/12
     node.añadir_caja_a_escena_de_planificacion(basura,"basura",(.24,.36,.12))
    
-    
+    torre1 = Pose(position= Point(x=-0.281471017258501,
+                                  y= -0.16223313574084047,
+                                  z= 0.35), # 0.6423561887074957
+                  orientation = Quaternion(x = 0,
+                                           y= 0,
+                                           z=0,
+                                           w=1))
+    node.añadir_caja_a_escena_de_planificacion(torre1,"torre1",(.07,.07,.77))
+
+    torre2 = Pose(position= Point(x=-0.28, # -0.39414925440106247
+                                  y= 0.18, # -0.21688130543806292
+                                  z= 0.75), # 0.6423561887074957
+                  orientation = Quaternion(x = 0,
+                                           y= 0,
+                                           z=0,
+                                           w=1))
+    node.añadir_caja_a_escena_de_planificacion(torre2,"torre2",(.16,.76,.23))
