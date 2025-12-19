@@ -108,14 +108,9 @@ class NodoRobot:
 
 if __name__ == '__main__':
     
-    node = NodoRobot()
-    node.gripper_action_client.wait_for_server()
-    # home = [2.384185791015625e-07, -1.57081999401235, 1.1269246236622621e-05, -1.5708099804320277, 1.7702579498291016e-05, 3.320696851005778e-05]
-    # node.mover_articulaciones(home)
-    # time.sleep(5)
-    # art1 = [2.103938102722168, -1.9056993923582972, 1.328787628804342, -0.9948828977397461, -1.5678799788104456, 0.39615392684936523]
-    # node.mover_articulaciones(art1)
+    node = NodoRobot()    
     suelo = node.añadir_suelo()
+
     """
     basura = node.pose_actual()  
     
@@ -135,7 +130,7 @@ if __name__ == '__main__':
     
     # definir las cosas para que el robot no se choque
     basura = Pose(position= Point(x=-0.01652226419654452,
-                                  y =0.33709295103918974,
+                                  y =0.38709295103918974,
                                   z= .05), # .3
                   orientation = Quaternion(x = 0,
                                            y= 0,
@@ -162,7 +157,13 @@ if __name__ == '__main__':
                                            w=1))
     node.añadir_caja_a_escena_de_planificacion(torre2,"torre2",(.16,.76,.23))
     
+    #home = [2.384185791015625e-07, -1.57081999401235, 1.1269246236622621e-05, -1.5708099804320277, 1.7702579498291016e-05, 3.320696851005778e-05]
+    #node.mover_articulaciones(home)
+    #time.sleep(5)
+    
+    
     # definir donde se tienen que tirar los objetos
+   
     basura_carton = Pose(position= Point(x=-0.020229356475544868,
                                   y= 0.3394047330950015,
                                   z= 0.37340989569877925),
@@ -187,11 +188,46 @@ if __name__ == '__main__':
                                            z= -7.947575556497002e-06,
                                            w= 6.461414762472053e-07))
     
+    prueba = Pose(position= Point(x=-0.44358062856420805,
+                                  y= 0.29296848592509883,
+                                  z= 0.18524586343853156),
+                  orientation = Quaternion(x = -0.9997761137191462,
+                                           y= -0.0010203291071483914,
+                                           z= 0.009960544306682221,
+                                           w= 0.018640518293991038))
+    
+    prueba2 = Pose(position= Point(x=-0.44358062856420805,
+                                  y= 0.29296848592509883,
+                                  z= 0.28524586343853156),
+                  orientation = Quaternion(x = -0.9997761137191462,
+                                           y= -0.0010203291071483914,
+                                           z= 0.009960544306682221,
+                                           w= 0.018640518293991038))
+
+    home_nuestro = [2.103938102722168, -1.9056993923582972, 1.328787628804342, -0.9948828977397461, -1.5678799788104456, 0.39615392684936523]
+    node.mover_articulaciones(home_nuestro)
+    time.sleep(10)
+
+    aruco = Pose(position= Point(x=-0.5094436870906449,
+                                  y= 0.12080529695346244,
+                                  z= 0.2491531422351253),
+                  orientation = Quaternion(x = -0.9996350560625232,
+                                           y= -0.016719810881794635,
+                                           z= 0.020898633025779084,
+                                           w= 0.0036673904355839096))
+    #node.mover_articulaciones(aruco)
+    
+    
+    #node.mover_articulaciones(prueba)
+    #time.sleep(5)
+    #node.mover_articulaciones(prueba2)
+   
+    
     # mover_pinza(mm, fuerza)
     # node.mover_pinza(0.0, 40.0) 
     
     # Mover el robot
-    
+    """
     pose_inicial = Pose(position= Point(x=-0.377,
                                   y= 0.271,
                                   z= 0.290),
@@ -214,8 +250,7 @@ if __name__ == '__main__':
     for p in trajectory:
         pose = node.list_to_pose(p)
         node.mover_a_pose(pose) # o mover a trayectoria (probar)
-    
-    """
+ 
     xs = np.linspace(pose_start.position.x, pose_end.position.x, steps)
     ys = np.linspace(pose_start.position.y, pose_end.position.y, steps)
     zs = np.linspace(pose_start.position.z, pose_end.position.z, steps)
