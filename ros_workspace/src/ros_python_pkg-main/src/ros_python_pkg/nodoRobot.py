@@ -162,6 +162,7 @@ if __name__ == '__main__':
     #time.sleep(5)
     
     
+    
     # definir donde se tienen que tirar los objetos
    
     basura_carton = Pose(position= Point(x=-0.020229356475544868,
@@ -227,7 +228,7 @@ if __name__ == '__main__':
     # node.mover_pinza(0.0, 40.0) 
     
     # Mover el robot
-    """
+    
     pose_inicial = Pose(position= Point(x=-0.377,
                                   y= 0.271,
                                   z= 0.290),
@@ -236,7 +237,7 @@ if __name__ == '__main__':
                                            z= 0,
                                            w= 0))
 
-    # pose_start = node.pose_actual()
+
     # pose_end = copy.deepcopy(pose_start)
     # pose_end.position.z += 0.03
     
@@ -249,8 +250,9 @@ if __name__ == '__main__':
     
     for p in trajectory:
         pose = node.list_to_pose(p)
-        node.mover_a_pose(pose) # o mover a trayectoria (probar)
- 
+        node.mover_a_pose(pose)
+        
+    """
     xs = np.linspace(pose_start.position.x, pose_end.position.x, steps)
     ys = np.linspace(pose_start.position.y, pose_end.position.y, steps)
     zs = np.linspace(pose_start.position.z, pose_end.position.z, steps)
@@ -268,7 +270,7 @@ if __name__ == '__main__':
     node.mover_trayectoria(poses)
     
     print('fin')
-"""
+    """
     
     
     

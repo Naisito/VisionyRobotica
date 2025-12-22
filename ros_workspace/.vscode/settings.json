@@ -1,0 +1,4 @@
+{
+    "python.analysis.extraPaths": ["/home/laboratorio/ros_workspace/devel/lib/python3/dist-packages"],
+    "python.autoComplete.extraPaths": ["/home/laboratorio/ros_workspace/devel/lib/python3/dist-packages"]
+}
