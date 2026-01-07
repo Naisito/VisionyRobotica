@@ -1,0 +1,17 @@
+{
+  "imagen": "/home/laboratorio/ros_workspace/src/ros_python_pkg-main/src/ros_python_pkg/imagenes/captura_cenital.png",
+  "aruco": {
+    "ids": [
+      42,
+      7
+    ],
+    "reference_id": 42,
+    "center_px": {
+      "x": 768.24609375,
+      "y": 454.52484130859375
+    },
+    "avg_mm_per_px": 1.040695349821353
+  },
+  "objetos": [],
+  "contenedores": []
+}

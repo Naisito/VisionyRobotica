@@ -26,13 +26,14 @@ class NodoGestos:
         self.bridge = CvBridge()
 
         # Suscriptor a la cámara usb-cam/image_raw/usb_cam2
-        rospy.Subscriber('/usb_cam/image_raw', Image, self._image_cb, queue_size=1)
+        rospy.Subscriber('/cam2/usb_cam1/image_raw', Image, self._image_cb, queue_size=1)
         self.img = None
-        rospy.wait_for_message('/usb_cam/image_raw', Image)
-        
+        rospy.wait_for_message('/cam2/usb_cam1/image_raw', Image)
+
+        # Suscriptor a comandos desde nodo central (opcional)
         rospy.Subscriber('nc_gestos', String, self.callbackGesto, queue_size=10)
         self.gesto = None
-        rospy.wait_for_message('gesto', String)
+        # No esperamos mensaje de nc_gestos para no bloquear el arranque
         
         # Estado para detección de movimiento
         self._prev_gray = None
@@ -40,6 +41,14 @@ class NodoGestos:
     def _image_cb(self, msg: Image) -> None:
         self.img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         
+
+    def callbackGesto(self, msg: String) -> None:
+        """Callback for topic 'nc_gestos' — store latest gesture string."""
+        try:
+            self.gesto = msg.data
+        except Exception:
+            # Defensive: ensure any unexpected message shape doesn't crash the node
+            self.gesto = None
     
     def count_fingers(self, contour, roi_frame):
 
@@ -236,11 +245,11 @@ class NodoGestos:
         panel_lines.append(f"Estable: {min(self.stable_frames, self.STABLE_N)}/{self.STABLE_N}")
         if self.gesture_confirmed and self.stable_target is not None:
             if display_count == 1:
-                resultado = 'Plastico'
+                resultado = 'botella'
             elif display_count == 2:
-                resultado = 'Carton'
+                resultado = 'carton'
             elif display_count == 3:
-                resultado = 'Lata'
+                resultado = 'lata'
             else:
                 resultado = 'Nada'
             panel_lines.append("Gesto confirmado")

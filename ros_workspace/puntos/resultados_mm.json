@@ -1,0 +1,17 @@
+{
+  "imagen": "imagenes/temp_foto.png",
+  "aruco": {
+    "ids": [
+      42,
+      7
+    ],
+    "reference_id": 42,
+    "center_px": {
+      "x": 979.798583984375,
+      "y": 639.0599975585938
+    },
+    "avg_mm_per_px": 0.867087465686725
+  },
+  "objetos": [],
+  "contenedores": []
+}

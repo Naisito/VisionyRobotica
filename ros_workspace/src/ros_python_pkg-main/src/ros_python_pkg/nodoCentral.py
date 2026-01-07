@@ -24,7 +24,7 @@ class NodoCentral:
         # Suscriptor 
         rospy.Subscriber('gesto', String, self.callbackGesto, queue_size=10)
         self.gesto = None
-        rospy.wait_for_message('gesto', String)
+        rospy.loginfo("NodoCentral: Esperando primer mensaje en topic 'gesto'...")
         
         
     '''
@@ -40,18 +40,15 @@ class NodoCentral:
         return resultado
     '''
     
-    def callbackGesto(self,msg: String):
+    def callbackGesto(self, msg: String):
+        """Recibe gesto y lo reenvía a nc_gestos."""
+        self.gesto = msg.data
+        rospy.loginfo(f"NodoCentral: Recibido gesto '{msg.data}', reenviando a nc_gestos")
         self.pub1.publish(msg)
         
     def start(self) -> None:
-        while not rospy.is_shutdown():
-            while self.gesto is None:
-                sleep(0.01)
-            imagen = deepcopy(self.img)
-            self.gesto = None
-            # resultado = self._process_image(imagen)
-            resultado = 'HOLA'
-            self.pub.publish(String(data=resultado))
+        rospy.loginfo("NodoCentral iniciado, esperando gestos...")
+        rospy.spin()  # Mantiene el nodo activo procesando callbacks
 
 
 if __name__ == '__main__':

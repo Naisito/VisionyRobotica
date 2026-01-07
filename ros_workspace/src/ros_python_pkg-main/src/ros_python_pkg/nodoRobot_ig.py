@@ -1,5 +1,7 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
+import numpy as np 
+import time
 import sys
 import copy
 import rospy
@@ -9,11 +11,12 @@ from math import pi, tau, dist, fabs, cos
 from std_msgs.msg import String
 from moveit_commander.conversions import pose_to_list
 from typing import List
-from geometry_msgs.msg import Pose, PoseStamped
+from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
+from tf.transformations import quaternion_from_euler
 from control_msgs.msg import GripperCommandAction, GripperCommandGoal, GripperCommandResult
 from actionlib import SimpleActionClient
 
-class ControlRobot:
+class NodoRobot:
     def __init__(self) -> None:
         roscpp_initialize(sys.argv)
         rospy.init_node("control_robot", anonymous=True)
@@ -76,43 +79,40 @@ class ControlRobot:
         result = self.gripper_action_client.get_result()
         
         return result.reached_goal
+    
+    def mover_lineal(self, pose: Pose) -> bool:
+        return self.mover_trayectoria([pose])
+        
+    def subir(self, cantidad: float) -> bool:
+        pose_act = self.pose_actual()
+        pose_act.position.z += cantidad
+        
+        return self.mover_lineal(pose_act)
+    
+    def bajar(self, cantidad: float) -> bool:
+        return self.subir(-cantidad)
+    
 
 if __name__ == '__main__':
-    # Crear el objeto de tipo robot
-    control = ControlRobot()
+    from poses import torre1, torre2, punto0
     
-    a = control.pose_actual()
-    print(f"x: {a.position.x} y: {a.position.y} offset x: -0.1m")
+    node = NodoRobot()
+    
+    suelo = node.añadir_suelo()
+   
+    node.añadir_caja_a_escena_de_planificacion(torre1,"torre1",(.07,.07,.77))
 
-    pi_medios = pi/2
-    # Mover el robot a articulaciones iniciales
-    control.mover_articulaciones([0,-pi_medios,-pi_medios,-pi_medios,pi_medios,0])
+    node.añadir_caja_a_escena_de_planificacion(torre2,"torre2",(.16,.76,.23))
     
-    # Mover el robot a una pose
-    pose_actual = control.pose_actual()
-    pose_actual.position.z -= 0.1
-    control.mover_a_pose(pose_actual)
+    home_nuestro = [2.103938102722168, -1.9056993923582972, 1.328787628804342, -0.9948828977397461, -1.5678799788104456, 0.39615392684936523]
+    node.mover_articulaciones(home_nuestro)
     
-    # Mover el efector final del robot en línea recta a través de varias poses
-    poses = [] # Lista de poses que va a recorrer
     
-    # Pose 1
-    pose_actual = control.pose_actual()
-    pose_actual.position.z += 0.1
-    poses.append(copy.deepcopy(pose_actual))
+    """
+    node.subir(.05)
+    node.bajar(.05) 
     
-    # Pose 2
-    pose_actual.position.y += 0.1
-    poses.append(copy.deepcopy(pose_actual))
-    
-    # Pose 3
-    pose_actual.position.x += 0.1
-    poses.append(copy.deepcopy(pose_actual))
-    
-    # Pose 4
-    pose_actual.position.x -= 0.1
-    pose_actual.position.y -= 0.1
-    pose_actual.position.z -= 0.1
-    poses.append(copy.deepcopy(pose_actual))
-    
-    control.mover_trayectoria(poses)
+    punto00creemos = Pose(position= Point(x= 0.07453385661753914, y= 0.12140867764445455, z= 0.304072414914192),
+                      orientation= Quaternion (x= -0.9984640518354704, y= 0.05348124515419738, z= 0.012607602232373909, w= 0.007095207889963304))
+    """
+

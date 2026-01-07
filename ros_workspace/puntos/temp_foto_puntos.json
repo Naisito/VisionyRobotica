@@ -1,0 +1,39 @@
+{
+  "imagen": "imagenes/temp_foto.png",
+  "objetos": [
+    {
+      "id": 1,
+      "tipo": "CYL",
+      "punto_central": {
+        "x": 1259,
+        "y": 163
+      },
+      "punto_1": {
+        "x": 1249,
+        "y": 164
+      },
+      "punto_2": {
+        "x": 1280,
+        "y": 164
+      },
+      "es_tapon": false
+    },
+    {
+      "id": 2,
+      "tipo": "RECT",
+      "punto_central": {
+        "x": 639,
+        "y": 359
+      },
+      "punto_1": {
+        "x": 640,
+        "y": -2
+      },
+      "punto_2": {
+        "x": 640,
+        "y": 720
+      },
+      "es_tapon": false
+    }
+  ]
+}
