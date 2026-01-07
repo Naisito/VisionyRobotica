@@ -1,5 +1,10 @@
 {
+<<<<<<< HEAD
     "python.analysis.extraPaths": [
         "./src/ros_python_pkg-main/src/ros_python_pkg/deteccion/funciones"
     ]
+=======
+    "python.analysis.extraPaths": ["/home/laboratorio/ros_workspace/devel/lib/python3/dist-packages"],
+    "python.autoComplete.extraPaths": ["/home/laboratorio/ros_workspace/devel/lib/python3/dist-packages"]
+>>>>>>> 9ec010a29d0f4ddafcf0bfe90983b20333aeb9b1
 }

@@ -94,7 +94,11 @@ class NodoRobot:
     
 
 if __name__ == '__main__':
+<<<<<<< HEAD
     from poses import torre1, torre2, punto0
+=======
+    from poses import torre1, torre2
+>>>>>>> 9ec010a29d0f4ddafcf0bfe90983b20333aeb9b1
     
     node = NodoRobot()
     
@@ -103,6 +107,7 @@ if __name__ == '__main__':
     node.añadir_caja_a_escena_de_planificacion(torre1,"torre1",(.07,.07,.77))
 
     node.añadir_caja_a_escena_de_planificacion(torre2,"torre2",(.16,.76,.23))
+<<<<<<< HEAD
     
     home_nuestro = [2.103938102722168, -1.9056993923582972, 1.328787628804342, -0.9948828977397461, -1.5678799788104456, 0.39615392684936523]
     node.mover_articulaciones(home_nuestro)
@@ -116,3 +121,15 @@ if __name__ == '__main__':
                       orientation= Quaternion (x= -0.9984640518354704, y= 0.05348124515419738, z= 0.012607602232373909, w= 0.007095207889963304))
     """
 
+=======
+    """
+    home_nuestro = [2.103938102722168, -1.9056993923582972, 1.328787628804342, -0.9948828977397461, -1.5678799788104456, 0.39615392684936523]
+    node.mover_articulaciones(home_nuestro)
+    
+    node.subir(.05)
+    node.bajar(.05) 
+    """
+    punto00creemos = Pose(position= Point(x= 0.07453385661753914, y= 0.12140867764445455, z= 0.304072414914192),
+                      orientation= Quaternion (x= -0.9984640518354704, y= 0.05348124515419738, z= 0.012607602232373909, w= 0.007095207889963304))
+    node.mover_articulaciones(punto00creemos)
+>>>>>>> 9ec010a29d0f4ddafcf0bfe90983b20333aeb9b1
