@@ -39,12 +39,12 @@ class MLWasteClassifier:
             self.encoder = joblib.load(os.path.join(self.model_dir, 'label_encoder.pkl'))
             self.feature_columns = joblib.load(os.path.join(self.model_dir, 'feature_columns.pkl'))
             self.classes = self.encoder.classes_
-            print(f"ML Classifier cargado correctamente desde {self.model_dir}")
-            print(f"Clases: {self.classes}")
         except Exception as e:
-            print(f"Error cargando modelo ML desde '{self.model_dir}': {e}")
-            print("Asegúrate de haber ejecutado train_classifier.py y de que los archivos existen.")
             self.model = None
+            self.scaler = None
+            self.encoder = None
+            self.feature_columns = None
+            self.classes = []
 
     def classify(self, features: Dict[str, float]) -> Tuple[str, float, Dict[str, float]]:
         """
@@ -96,27 +96,27 @@ class MLWasteClassifier:
         scores = {cls: prob for cls, prob in zip(self.classes, probs)}
         
         # --- HEURISTIC OVERRIDE ---
-        # Si el ML dice LATA pero parece de plástico (no metálico y color plástico/blanco)
-        # forzamos a BOTELLA. Esto corrige la confusión común con botellas blancas redondas.
+        # Si el ML dice lata pero parece de plástico (no metálico y color plástico/blanco)
+        # forzamos a botella. Esto corrige la confusión común con botellas blancas redondas.
         is_metallic = features.get('is_metallic_color', 0.0) > 0.5
         is_plastic = features.get('is_transparent_color', 0.0) > 0.5
         metallic_score = features.get('metallic_score', 0.0)
         
-        if predicted_class == "LATA":
+        if predicted_class == "lata":
             # Si NO es color metálico Y (es plástico O score metálico muy bajo)
             if not is_metallic and (is_plastic or metallic_score < 0.4):
-                print(f"  [OVERRIDE] LATA -> BOTELLA (No metallic color, plastic/low metallic score)")
-                predicted_class = "BOTELLA"
+                print(f"  [OVERRIDE] lata -> botella (No metallic color, plastic/low metallic score)")
+                predicted_class = "botella"
                 confidence = 0.95 # Confianza artificial alta tras corrección
         
-        # --- NUEVO HEURISTIC: Detectar Latas que el ML pierde ---
-        # El Objeto 5 (Lata) tenía metallic_score=0.60 y gradient=106, pero ML dijo BOTELLA.
+        # --- NUEVO HEURISTIC: Detectar latas que el ML pierde ---
+        # El Objeto 5 (lata) tenía metallic_score=0.60 y gradient=106, pero ML dijo botella.
         # Las latas con muchos gráficos tienen gradiente alto y score metálico decente.
-        elif predicted_class != "LATA":
+        elif predicted_class != "lata":
             gradient_mean = features.get('gradient_mean', 0.0)
             if metallic_score > 0.55 and gradient_mean > 80.0:
-                 print(f"  [OVERRIDE] {predicted_class} -> LATA (High metallic score {metallic_score:.2f} & gradient {gradient_mean:.1f})")
-                 predicted_class = "LATA"
+                 print(f"  [OVERRIDE] {predicted_class} -> lata (High metallic score {metallic_score:.2f} & gradient {gradient_mean:.1f})")
+                 predicted_class = "lata"
                  confidence = 0.90
 
         # Verificar umbral
@@ -131,9 +131,9 @@ class MLWasteClassifier:
         """Color BGR para dibujar cada clase."""
         # Reutilizamos los colores estándar, asumiendo nombres estándar
         colors = {
-            "LATA":       (0, 255, 255),   # Amarillo
-            "BOTELLA":    (255, 0, 0),     # Azul
-            "CARTON":     (0, 165, 255),   # Naranja
+            "lata":       (0, 255, 255),   # Amarillo
+            "botella":    (255, 0, 0),     # Azul
+            "carton":     (0, 165, 255),   # Naranja
             self.CLASS_UNKNOWN:   (128, 128, 128)  # Gris
         }
         return colors.get(class_name, (255, 255, 255))

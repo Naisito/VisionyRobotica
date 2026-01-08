@@ -65,7 +65,7 @@ class WasteClassificationSystem:
             detect_aruco: Si True, detecta y excluye ArUco markers
             detect_box: Si True, detecta y excluye caja de la izquierda
             use_ml: Si True, usa el clasificador ML
-            filter_class: Filtrar por tipo ('plastico', 'carton', 'lata', None=todos)
+            filter_class: Filtrar por tipo ('botella', 'carton', 'lata', None=todos)
         """
         self.feature_extractor = FeatureExtractor()
         self.roi_detector = ROIDetector(margin=roi_margin, board_inner_margin=board_margin)
@@ -81,21 +81,13 @@ class WasteClassificationSystem:
                     self.calibration = CameraCalibration.from_ost_txt(calibration_file)
                 elif ext == '.pkl':
                     self.calibration = CameraCalibration.from_pickle(calibration_file)
-                else:
-                    print(f"Extensión de calibración no reconocida: {ext}")
-                if self.calibration is not None:
-                    print(f"Calibración de cámara cargada desde: {calibration_file}")
             except Exception as e:
-                print(f"Error al cargar calibración ({calibration_file}): {e}")
                 self.calibration = None
         
         if use_ml:
-            print("Usando Clasificador ML con fallback de reglas...")
             self.classifier = MLWasteClassifier(confidence_threshold=confidence_threshold)
-            # Fallback basado en reglas si ML falla o devuelve DESCONOCIDO
             self.rule_classifier = WasteClassifier(confidence_threshold=max(0.3, confidence_threshold - 0.1))
         else:
-            print("Usando Clasificador por Reglas...")
             self.classifier = WasteClassifier(confidence_threshold=confidence_threshold)
             self.rule_classifier = None
         
@@ -105,9 +97,9 @@ class WasteClassificationSystem:
         # Mapeo de filtro de clase (normalizar a mayúsculas)
         self.filter_class = filter_class
         self.class_map = {
-            'botella': 'BOTELLA',
-            'carton': 'CARTON', 
-            'lata': 'LATA'
+            'botella': 'botella',
+            'carton': 'carton', 
+            'lata': 'lata'
         }
         self.filter_class_name = self.class_map.get(filter_class.lower()) if filter_class else None
         
@@ -176,85 +168,48 @@ class WasteClassificationSystem:
             raise ValueError(f"No se pudo cargar la imagen: {image_path}")
         
         # 0. Calibrar y Escalar
-        # Primero quitamos distorsión (si hay calibración)
         image = self._maybe_undistort(image)
         
-        # Luego escalamos a 1280x720
-        #image = cv2.resize(image, (1280, 720))
-
-        
-        if verbose:
-            print(f"\n{'='*60}")
-            print(f"Procesando: {image_path}")
-            print(f"Tamaño de imagen: {image.shape}")
-            print(f"{'='*60}\n")
-        
         # 1. Crear ROI mask
-        if verbose:
-            print("Paso 1: Detectando ROI...")
-        
         roi_mask, roi_info = self.roi_detector.create_roi_mask(
             image, 
             detect_aruco=self.detect_aruco,
             detect_box=self.detect_box
         )
         
-        if verbose:
-            print(f"  - ArUco markers detectados: {len(roi_info['aruco_markers'])}")
-            print(f"  - Caja detectada: {'Sí' if roi_info['box_region'] else 'No'}")
-            print(f"  - Áreas excluidas: {roi_info['excluded_areas']}")
-        
         # 2. Segmentar objetos
-        if verbose:
-            print("\nPaso 2: Segmentando objetos...")
-        
         contours, seg_info = self.segmenter.segment_objects(
             image, 
             roi_mask=roi_mask,
             debug=show_debug
         )
         
-        if verbose:
-            print(f"  - Contornos totales: {seg_info['num_contours_total']}")
-            print(f"  - Contornos válidos: {seg_info['num_contours_valid']}")
-        
         # 3. Extraer características y clasificar cada objeto
-        if verbose:
-            print("\nPaso 3: Clasificando objetos...")
-        
         results = []
         for i, contour in enumerate(contours):
-            if verbose:
-                print(f"\n  Objeto #{i+1}:")
-            
-            # === CALCULAR CENTRO DEL OBJETO (CENTROIDE) ===
+            # Calcular centro
             M = cv2.moments(contour)
             if M["m00"] != 0:
                 cx = int(M["m10"] / M["m00"])
                 cy = int(M["m01"] / M["m00"])
             else:
-                # Fallback si el contorno es degenerado: usar centro del bounding box
                 x, y, w, h = cv2.boundingRect(contour)
                 cx = x + w // 2
                 cy = y + h // 2
             
-            if verbose:
-                print(f"    Centro aproximado: ({cx}, {cy})")
-            
             # Extraer características
             features = self.feature_extractor.extract_features(image, contour)
             
-            # Clasificar (ML primero, luego fallback por reglas si es DESCONOCIDO o baja confianza)
+            # Clasificar
             class_name, confidence, scores = self.classifier.classify(features)
             if class_name == 'DESCONOCIDO' and self.rule_classifier is not None:
                 rb_class, rb_conf, rb_scores = self.rule_classifier.classify(features)
-                # Si el clasificador de reglas tiene confianza razonable, usarlo
                 if rb_class != 'DESCONOCIDO' and rb_conf >= 0.3:
                     class_name, confidence, scores = rb_class, rb_conf, rb_scores
             
             # Filtrar por clase si está especificado
             if self.filter_class_name and class_name != self.filter_class_name:
-                continue  # Saltar este objeto si no coincide con el filtro
+                continue
             
             # Guardar resultado
             result = {
@@ -264,63 +219,17 @@ class WasteClassificationSystem:
                 'class': class_name,
                 'confidence': confidence,
                 'scores': scores,
-                'center': (cx, cy),  # coordenadas del centro del objeto
+                'center': (cx, cy),
             }
             results.append(result)
-            
-            if verbose:
-                print("    metallic_score =", features.get("metallic_score"))
-                print("    specular_ratio =", features.get("specular_ratio"))
-                print("    specular_ratio_top =", features.get("specular_ratio_top"))
-                print("    gradient_mean =", features.get("gradient_mean"))
-                print("    is_metallic_color =", features.get("is_metallic_color"))
-                print("    is_transparent_color =", features.get("is_transparent_color"))
-                print("    is_brown_color =", features.get("is_brown_color"))
-                print("    circularity =", features.get("circularity"))
-                print("    elongation_ratio =", features.get("elongation_ratio"))
-                print("    edge_density_top =", features.get("edge_density_top"))
-
         
         # 4. Crear visualización
         vis_image = self._create_visualization(image, results)
         
         # 5. Guardar resultados
         if output_path:
-            # Crear directorio si no existe
             os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
-            
             cv2.imwrite(output_path, vis_image)
-            if verbose:
-                print(f"[OK] Imagen guardada en: {output_path}")
-            
-            # Guardar visualización de ROI si se solicita
-            if show_roi:
-                roi_vis = self.roi_detector.visualize_roi(image, roi_mask, roi_info)
-                roi_path = output_path.replace('.png', '_roi.png')
-                cv2.imwrite(roi_path, roi_vis)
-                if verbose:
-                    print(f"✓ ROI guardado en: {roi_path}")
-            
-            # Guardar debug de segmentación si se solicita
-            if show_debug:
-                debug_vis = self.segmenter.create_debug_visualization(seg_info)
-                debug_path = output_path.replace('.png', '_debug.png')
-                cv2.imwrite(debug_path, debug_vis)
-                if verbose:
-                    print(f"✓ Debug guardado en: {debug_path}")
-        
-        # Resumen
-        if verbose:
-            print(f"\n{'='*60}")
-            print("RESUMEN DE CLASIFICACIÓN:")
-            class_counts = {}
-            for result in results:
-                cls = result['class']
-                class_counts[cls] = class_counts.get(cls, 0) + 1
-            
-            for cls, count in class_counts.items():
-                print(f"  {cls}: {count}")
-            print(f"{'='*60}\n")
         
         return {
             'image_path': image_path,
@@ -802,8 +711,8 @@ def main():
                        help='No detectar caja de la izquierda')
     parser.add_argument('--ml', action='store_true',
                        help='Usar clasificador ML (requiere haber ejecutado train_classifier.py)')
-    parser.add_argument('--filter-class', type=str, choices=['plastico', 'carton', 'lata'],
-                       help='Filtrar por tipo de objeto: plastico, carton, lata')
+    parser.add_argument('--filter-class', type=str, choices=['botella', 'carton', 'lata'],
+                       help='Filtrar por tipo de objeto: botella, carton, lata')
     
     parser.add_argument('--calib', type=str,
                        help='Fichero de calibración de cámara (ost.yaml, ost.txt o calibracion_camara.pkl)')

@@ -26,9 +26,9 @@ class NodoGestos:
         self.bridge = CvBridge()
 
         # Suscriptor a la cámara usb-cam/image_raw/usb_cam2
-        rospy.Subscriber('/cam2/usb_cam1/image_raw', Image, self._image_cb, queue_size=1)
+        rospy.Subscriber('/cam1/usb_cam1/image_raw', Image, self._image_cb, queue_size=1)
         self.img = None
-        rospy.wait_for_message('/cam2/usb_cam1/image_raw', Image)
+        rospy.wait_for_message('/cam1/usb_cam1/image_raw', Image)
 
         # Suscriptor a comandos desde nodo central (opcional)
         rospy.Subscriber('nc_gestos', String, self.callbackGesto, queue_size=10)

@@ -86,7 +86,6 @@ def apply_target_brightness_filter(img):
         
         # === AQUÍ USAMOS TU VARIABLE ===
         if current_brightness <= (TARGET_REAL_BRIGHTNESS + 0.5):
-            print(f"✅ Brillo alcanzado: {current_brightness:.2f} (Objetivo: {TARGET_REAL_BRIGHTNESS})")
             break
         
         diff = current_brightness - TARGET_REAL_BRIGHTNESS
@@ -356,7 +355,6 @@ def save_points_json(image_name, detections):
         data["objetos"].append(obj)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    print(f"💾 Guardado JSON de puntos en: {out_path}")
 
 # =========================
 # Lógica común de Procesamiento
@@ -370,29 +368,6 @@ def _procesar_y_mostrar(img, nombre_archivo):
     gray = cv2.cvtColor(img_corrected, cv2.COLOR_BGR2GRAY)
     detections, _ = get_detections(gray)
     save_points_json(nombre_archivo, detections)
-    
-    # Generar la imagen con todo dibujado
-    out = process_frame(img) 
-    
-    # --- NUEVO: GUARDAR LA IMAGEN RESULTANTE ---
-    base_name = os.path.basename(nombre_archivo)
-    
-    # Asegurar carpeta imagenes
-    os.makedirs("imagenes", exist_ok=True)
-    nombre_salida = os.path.join("imagenes", f"resultado_{base_name}")
-    
-    # Si la extensión no es amigable, forzamos png o jpg
-    if not nombre_salida.lower().endswith(('.png', '.jpg', '.jpeg')):
-        nombre_salida += ".png"
-        
-    cv2.imwrite(nombre_salida, out)
-    print(f"🖼️ FOTO EXPORTADA: Guardada como '{nombre_salida}'")
-    # --------------------------------------------
-    
-    cv2.imshow("FOTO (Target Real)", out)
-    print("✅ Análisis completado. Pulsa cualquier tecla para cerrar.")
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
 
 # =========================
 # Funciones Modos

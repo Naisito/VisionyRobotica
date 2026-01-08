@@ -7,19 +7,19 @@ class WasteClassifier:
     Clasificador de residuos basado en reglas sencillas.
 
     Clases:
-        - LATA
-        - BOTELLA
-        - CARTON
+        - lata
+        - botella
+        - carton
 
     La idea es:
         1) Separar objetos METÁLICOS de NO METÁLICOS.
-        2) En los NO METÁLICOS, distinguir BOTELLA (alargada / tapa circular)
-           de CARTON (rectangular tipo brick).
+        2) En los NO METÁLICOS, distinguir botella (alargada / tapa circular)
+           de carton (rectangular tipo brick).
     """
 
-    CLASS_CAN = "LATA"
-    CLASS_BOTTLE = "BOTELLA"
-    CLASS_CARDBOARD = "CARTON"
+    CLASS_CAN = "lata"
+    CLASS_BOTTLE = "botella"
+    CLASS_CARDBOARD = "carton"
     CLASS_UNKNOWN = "DESCONOCIDO"
 
     def __init__(self, confidence_threshold: float = 0.5):
@@ -62,7 +62,7 @@ class WasteClassifier:
         return best_class, confidence, scores
 
        # ================================
-    # LATA
+    # lata
     # ================================
     def _score_can(self, f: Dict[str, float]) -> float:
         metallic   = f.get("metallic_score", 0.0)
@@ -98,7 +98,7 @@ class WasteClassifier:
         return score
 
     # ================================
-    # BOTELLA
+    # botella
     # ================================
     def _score_bottle(self, f: Dict[str, float]) -> float:
         metallic = f.get("metallic_score", 0.0)
@@ -128,7 +128,7 @@ class WasteClassifier:
         return score
 
     # ================================
-    # CARTON
+    # carton
     # ================================
     def _score_cardboard(self, f: Dict[str, float]) -> float:
         metallic   = f.get("metallic_score", 0.0)

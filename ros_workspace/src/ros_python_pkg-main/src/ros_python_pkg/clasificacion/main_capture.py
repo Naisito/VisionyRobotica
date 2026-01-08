@@ -7,8 +7,8 @@ from clasificador_main import WasteClassificationSystem
 def main():
     # 1. Configuración de Argumentos
     parser = argparse.ArgumentParser(description='Captura y clasifica residuos.')
-    parser.add_argument('--filter-class', type=str, choices=['plastico', 'carton', 'lata'],
-                       help='Filtrar por tipo de objeto: plastico, carton, lata')
+    parser.add_argument('--filter-class', type=str, choices=['botella', 'carton', 'lata'],
+                       help='Filtrar por tipo de objeto: botella, carton, lata')
     args = parser.parse_args()
 
     CAMERA_ID = 0

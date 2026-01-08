@@ -24,7 +24,7 @@ basura_carton = Pose(position= Point(x=-0.020229356475544868,
                                            z=-1.054914307895939e-05,
                                            w=2.68951475182031e-05))
     
-basura_plastico = Pose(position= Point(x=-0.035342447529806524,
+basura_botella = Pose(position= Point(x=-0.035342447529806524,
                                 y= 0.21990838399222412,
                                 z= 0.43148554119205407),
                 orientation = Quaternion(x = -0.9984570055710325,

@@ -27,9 +27,8 @@ def process_with_classifier_via_script(image_path: str, filter_class: str) -> Di
         json_out = tmp.name
     
     cmd = [sys.executable, "clasificador_imagenes.py"]
-    # TEMPORAL: Sin filtro para debug
-    # if filter_class:
-    #     cmd += ["--filter-class", filter_class]
+    if filter_class:
+        cmd += ["--filter-class", filter_class]
     if image_path:
         cmd += ["--image", os.path.abspath(image_path)]
     cmd += ["--json-results", json_out]
@@ -45,11 +44,6 @@ def process_with_classifier_via_script(image_path: str, filter_class: str) -> Di
     with open(json_out, "r", encoding="utf-8") as f:
         data = json.load(f)
     
-    # DEBUG: Ver qué devuelve el clasificador
-    print(f"[DEBUG] Clasificador devuelve: {len(data.get('results', []))} resultados")
-    for r in data.get('results', []):
-        print(f"  -> clase: '{r.get('class')}', conf: {r.get('confidence')}")
-    
     try:
         os.remove(json_out)
     except:
@@ -60,12 +54,13 @@ def process_with_classifier_via_script(image_path: str, filter_class: str) -> Di
 
 def get_detections_from_image(image_path: str) -> Dict[str, Any]:
     """Fase 3: Extrae puntos de la imagen y devuelve datos en memoria."""
-    from deteccion.funciones.version_final_exporta_fotos import get_detections
+    from deteccion.funciones.version_final_exporta_fotos import get_detections, adjust_brightness_to_target
     
     img = cv2.imread(image_path)
     if img is None:
         raise RuntimeError(f"No se pudo leer: {image_path}")
     
+    img = adjust_brightness_to_target(img)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     detections, _ = get_detections(gray)
     
@@ -98,8 +93,7 @@ def filter_points_by_classification(points_data: Dict[str, Any], class_results: 
     """Filtra puntos por clasificación (en memoria)."""
     contours = []
     for r in class_results.get("results", []):
-        # Comparar en minúsculas
-        if r.get("class", "").lower() == desired_class_name.lower():
+        if r.get("class") == desired_class_name:
             c = r.get("contour")
             if c is not None:
                 if isinstance(c, list):
@@ -168,7 +162,6 @@ def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: f
     output_path = os.path.join(PUNTOS_DIR, "resultados_mm.json")
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
-
     
     return results
 
@@ -185,7 +178,6 @@ def run_pipeline(foto, residue_name):
     """
     ensure_dirs()
     
-    # El clasificador devuelve clases en MAYÚSCULAS
     desired_class_name = {"lata": "lata", "carton": "carton", "botella": "botella"}[residue_name]
     classifier_filter = _map_to_classifier_filter(residue_name)
     
@@ -202,18 +194,20 @@ def run_pipeline(foto, residue_name):
     print(f"Detectados {len(fase2['results'])} objetos de tipo '{residue_name}'")
     
     # Fase 3: detectar puntos (en memoria)
-    print("[DEBUG] Iniciando Fase 3: detección de puntos...")
     points_data = get_detections_from_image(image_path)
-    print(f"[DEBUG] Fase 3 completada: {len(points_data.get('objetos', []))} puntos detectados")
     
     # Filtrar puntos (en memoria)
-    print(f"[DEBUG] Filtrando por clase: {desired_class_name}")
     filtered_points = filter_points_by_classification(points_data, fase2, desired_class_name)
-    print(f"[DEBUG] Puntos filtrados: {len(filtered_points.get('objetos', []))}")
     
     # Fase 4: medir y generar imagen final
-    print("[DEBUG] Iniciando Fase 4: medición ArUco...")
     results = measure_with_aruco(image_path, filtered_points, aruco_mm=48.0, dict_name="AUTO")
-    print("[DEBUG] Pipeline completado")
     
     return results
+
+
+if __name__ == "__main__":
+    image_path = "foto_ejemplo.png"
+    foto = cv2.imread(image_path)
+    if foto is None:
+        raise RuntimeError(f"No se pudo leer la imagen: {image_path}")
+    run_pipeline(foto, "lata")

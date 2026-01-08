@@ -145,9 +145,9 @@ def _prompt_residue_type() -> str:
 
 def _map_to_classifier_filter(residue: str) -> str:
     """Map user residue to WasteClassificationSystem filter_class.
-    'botella' -> 'plastico' (mapping used internally), else self.
+    'botella' -> 'botella' (mapping used internally), else self.
     """
-    return "plastico" if residue == "botella" else residue
+    return "botella" if residue == "botella" else residue
 
 
 def filter_points_by_classification(points_json_path: str, class_results: Dict[str, Any], desired_class_name: str) -> str:
@@ -157,7 +157,7 @@ def filter_points_by_classification(points_json_path: str, class_results: Dict[s
     with open(points_json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # Collect contours for desired class ('LATA', 'CARTON', 'BOTELLA') from classification
+    # Collect contours for desired class ('lata', 'carton', 'botella') from classification
     contours = []
     for r in class_results.get("results", []):
         if r.get("class") == desired_class_name:
@@ -323,7 +323,7 @@ def run_pipeline():
     modo = input("Opción: ").strip().lower()
 
     residue = _prompt_residue_type()
-    desired_class_name = {"lata": "LATA", "carton": "CARTON", "botella": "BOTELLA"}[residue]
+    desired_class_name = {"lata": "lata", "carton": "carton", "botella": "botella"}[residue]
     classifier_filter = _map_to_classifier_filter(residue)
 
     if modo == "camara":
