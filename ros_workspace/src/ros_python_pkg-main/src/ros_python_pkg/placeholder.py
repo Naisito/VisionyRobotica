@@ -9,8 +9,33 @@ import numpy as np
 
 from deteccion.funciones.aruco_batch_measure import detect_arucos, process_items
 
+# Importar calibración
+try:
+    from clasificacion.camera_calibration import CameraCalibration
+except ImportError:
+    print("[WARN] No se pudo importar CameraCalibration")
+
 IMAGENES_DIR = "imagenes"
 PUNTOS_DIR = "puntos"
+CALIB_FILE = os.path.join(os.path.dirname(__file__), "clasificacion", "calibracion_camara_cenital.pkl")
+
+# Cargar calibración global
+_calibration = None
+def get_calibration():
+    global _calibration
+    if _calibration is None and os.path.exists(CALIB_FILE):
+        try:
+            _calibration = CameraCalibration.from_pickle(CALIB_FILE)
+        except Exception as e:
+            print(f"[WARN] No se pudo cargar calibración: {e}")
+    return _calibration
+
+def undistort_image(img):
+    """Aplica corrección de distorsión si hay calibración disponible."""
+    calib = get_calibration()
+    if calib is not None:
+        return calib.undistort(img)
+    return img
 
 
 def ensure_dirs():
@@ -66,6 +91,9 @@ def get_detections_from_image(image_path: str) -> Dict[str, Any]:
     if img is None:
         raise RuntimeError(f"No se pudo leer: {image_path}")
     
+    # Aplicar calibración para corregir distorsión
+    img = undistort_image(img)
+    
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     detections, _ = get_detections(gray)
     
@@ -98,8 +126,7 @@ def filter_points_by_classification(points_data: Dict[str, Any], class_results: 
     """Filtra puntos por clasificación (en memoria)."""
     contours = []
     for r in class_results.get("results", []):
-        # Comparar en minúsculas
-        if r.get("class", "").lower() == desired_class_name.lower():
+        if r.get("class") == desired_class_name:
             c = r.get("contour")
             if c is not None:
                 if isinstance(c, list):
@@ -136,13 +163,16 @@ def filter_points_by_classification(points_data: Dict[str, Any], class_results: 
     }
 
 
-def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: float = 50.0, dict_name: str = "AUTO") -> Dict[str, Any]:
+def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: float = 50.0, dict_name: str = "AUTO", clase_detectada: str = "") -> Dict[str, Any]:
     """Fase 4: Mide con ArUco y genera imagen final."""
     ensure_dirs()
 
     frame = cv2.imread(image_path, cv2.IMREAD_COLOR)
     if frame is None:
         raise RuntimeError(f"No se pudo leer la imagen: {image_path}")
+
+    # Aplicar calibración para corregir distorsión
+    frame = undistort_image(frame)
 
     markers = detect_arucos(frame, dict_name)
     if not markers:
@@ -169,6 +199,66 @@ def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: f
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
 
+    # === IMAGEN FINAL CON OBJETOS MARCADOS ===
+    vis_img = frame.copy()
+    
+    # Colores por tipo de residuo
+    colores = {
+        "LATA": (0, 165, 255),      # Naranja
+        "CARTON": (0, 100, 255),    # Marrón/Naranja oscuro
+        "BOTELLA": (0, 255, 0),     # Verde
+    }
+    color = colores.get(clase_detectada.upper(), (255, 255, 0))  # Cian por defecto
+    
+    # Dibujar ArUcos
+    for m in markers:
+        cx, cy = int(m["center_px"]["x"]), int(m["center_px"]["y"])
+        cv2.circle(vis_img, (cx, cy), 6, (0, 255, 255), -1)
+        corners = np.array(m["corners"], dtype=np.int32).reshape((-1, 1, 2))
+        cv2.polylines(vis_img, [corners], True, (0, 255, 255), 2)
+    
+    # Dibujar objetos detectados
+    for obj_data in results.get("objetos", []):
+        obj_id = obj_data.get("id")
+        pc = obj_data.get("punto_central")
+        p1 = obj_data.get("punto_1")
+        p2 = obj_data.get("punto_2")
+        
+        if pc:
+            # Obtener coordenadas en píxeles
+            px = int(pc.get("x_px", pc.get("x", 0)))
+            py = int(pc.get("y_px", pc.get("y", 0)))
+            
+            if px == 0 and py == 0:
+                continue
+            
+            # Dibujar punto central
+            cv2.circle(vis_img, (px, py), 10, color, -1)
+            cv2.circle(vis_img, (px, py), 12, (255, 255, 255), 2)
+            
+            # Dibujar puntos de agarre
+            if p1 and p2:
+                p1x = int(p1.get("x_px", p1.get("x", 0)))
+                p1y = int(p1.get("y_px", p1.get("y", 0)))
+                p2x = int(p2.get("x_px", p2.get("x", 0)))
+                p2y = int(p2.get("y_px", p2.get("y", 0)))
+                cv2.circle(vis_img, (p1x, p1y), 6, (255, 0, 0), -1)
+                cv2.circle(vis_img, (p2x, p2y), 6, (255, 0, 0), -1)
+                cv2.line(vis_img, (p1x, p1y), (p2x, p2y), (255, 0, 0), 2)
+            
+            # Etiqueta con tipo y ID para TODOS los objetos
+            label = f"{clase_detectada} #{obj_id}"
+            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+            # Fondo de la etiqueta
+            cv2.rectangle(vis_img, (px - 5, py - th - 25), (px + tw + 10, py - 5), color, -1)
+            # Texto de la etiqueta
+            cv2.putText(vis_img, label, (px, py - 10),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
+    
+    # Guardar imagen
+    vis_output = os.path.join(IMAGENES_DIR, "resultado_final.png")
+    cv2.imwrite(vis_output, vis_img)
+    print(f"Imagen guardada: {vis_output}")
     
     return results
 
@@ -186,7 +276,7 @@ def run_pipeline(foto, residue_name):
     ensure_dirs()
     
     # El clasificador devuelve clases en MAYÚSCULAS
-    desired_class_name = {"lata": "lata", "carton": "carton", "botella": "botella"}[residue_name]
+    desired_class_name = {"lata": "LATA", "carton": "CARTON", "botella": "BOTELLA"}[residue_name]
     classifier_filter = _map_to_classifier_filter(residue_name)
     
     # Guardar imagen temporal
@@ -213,7 +303,7 @@ def run_pipeline(foto, residue_name):
     
     # Fase 4: medir y generar imagen final
     print("[DEBUG] Iniciando Fase 4: medición ArUco...")
-    results = measure_with_aruco(image_path, filtered_points, aruco_mm=48.0, dict_name="AUTO")
+    results = measure_with_aruco(image_path, filtered_points, aruco_mm=48.0, dict_name="AUTO", clase_detectada=desired_class_name)
     print("[DEBUG] Pipeline completado")
     
     return results

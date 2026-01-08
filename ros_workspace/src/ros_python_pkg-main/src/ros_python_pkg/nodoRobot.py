@@ -8,13 +8,44 @@ import rospy
 from moveit_commander import MoveGroupCommander, RobotCommander, roscpp_initialize, PlanningSceneInterface
 import moveit_msgs.msg
 from math import pi, tau, dist, fabs, cos
-from std_msgs.msg import String
+from std_msgs.msg import String, Float32MultiArray
 from moveit_commander.conversions import pose_to_list
 from typing import List
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 from tf.transformations import quaternion_from_euler
 from control_msgs.msg import GripperCommandAction, GripperCommandGoal, GripperCommandResult
 from actionlib import SimpleActionClient
+
+# Coordenadas de referencia del ArUco en el frame del robot (metros)
+ARUCO_REF_X = -0.5192520489268268
+ARUCO_REF_Y = 0.12140867764445455
+
+
+def mm_to_pose(x_mm: float, y_mm: float, angulo_grados: float) -> Pose:
+    """
+    Convierte coordenadas en mm (relativas al ArUco) a una Pose del robot.
+    
+    La cámara ve las coordenadas relativas al centro del ArUco.
+    El robot tiene el ArUco en (ARUCO_REF_X, ARUCO_REF_Y).
+    
+    Fórmula:
+        robot_x = ARUCO_REF_X - (x_mm / 1000)  # Resta porque - y - suma
+        robot_y = ARUCO_REF_Y + (y_mm / 1000)
+    """
+    # Convertir mm a metros
+    x_m = x_mm / 1000.0
+    y_m = y_mm / 1000.0
+    
+    # Calcular posición en frame del robot
+    robot_x = ARUCO_REF_X - x_m
+    robot_y = ARUCO_REF_Y + y_m
+    
+    pose = Pose()
+    pose.position = Point(x=robot_x, y=robot_y, z=1.0)  # z=1 temporal
+    pose.orientation = Quaternion(x=0, y=0, z=0, w=1)   # orientación temporal
+    
+    return pose
+
 
 class NodoRobot:
     def __init__(self) -> None:
@@ -26,6 +57,53 @@ class NodoRobot:
         self.move_group = MoveGroupCommander(self.group_name)
         self.gripper_action_client = SimpleActionClient("rg2_action_server", GripperCommandAction)
         self.añadir_suelo()
+        
+        # Lista de poses de objetos detectados
+        self.poses_objetos = []
+        
+        # Suscriptor al topic de coordenadas
+        rospy.Subscriber('coordenadas_objetos', Float32MultiArray, self._coordenadas_cb, queue_size=10)
+        rospy.loginfo("NodoRobot: Suscrito a 'coordenadas_objetos'")
+
+    def _coordenadas_cb(self, msg: Float32MultiArray) -> None:
+        """
+        Callback que recibe coordenadas de objetos y las convierte a poses.
+        
+        Formato del array: [id1, x1, y1, angulo1, id2, x2, y2, angulo2, ...]
+        Cada objeto ocupa 4 posiciones.
+        """
+        self.poses_objetos = []
+        data = msg.data
+        
+        # Cada objeto tiene 4 valores: id, x, y, angulo
+        num_objetos = len(data) // 4
+        
+        for i in range(num_objetos):
+            idx = i * 4
+            obj_id = int(data[idx])
+            x_mm = data[idx + 1]
+            y_mm = data[idx + 2]
+            angulo = data[idx + 3]
+            
+            pose = mm_to_pose(x_mm, y_mm, angulo)
+            
+            self.poses_objetos.append({
+                'id': obj_id,
+                'x_mm': x_mm,
+                'y_mm': y_mm,
+                'angulo': angulo,
+                'pose': pose
+            })
+            
+            rospy.loginfo(f"NodoRobot: Objeto {obj_id} -> "
+                         f"x={pose.position.x:.4f}m, y={pose.position.y:.4f}m, "
+                         f"angulo={angulo:.2f}°")
+        
+        rospy.loginfo(f"NodoRobot: Recibidas {num_objetos} poses de objetos")
+
+    def obtener_poses_objetos(self) -> List[dict]:
+        """Devuelve la lista de objetos con sus poses."""
+        return self.poses_objetos
 
     def articulaciones_actuales(self) -> list:
         return self.move_group.get_current_joint_values()
@@ -154,11 +232,7 @@ if __name__ == '__main__':
         y=0.1709
         
         no llega sin cambiar z
-        
-    Prueba5
-        
-            
-            
+          
     '''
 
     node.mover_articulaciones(pose_home)

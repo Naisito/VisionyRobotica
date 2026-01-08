@@ -22,9 +22,14 @@ def main():
     CAMERA_ID = 0
     RES_W, RES_H = 1280, 720
     CALIB_FILE = "calibracion_camara_cenital.pkl"
-    OUTPUT_PROCESSED = "captura_procesada.png"
+    
+    # Guardar imagen procesada en carpeta imagenes (un nivel arriba)
+    IMAGENES_DIR = os.path.join(os.path.dirname(__file__), "..", "imagenes")
+    os.makedirs(IMAGENES_DIR, exist_ok=True)
+    OUTPUT_PROCESSED = os.path.join(IMAGENES_DIR, "clasificacion_resultado.png")
 
-    calib_to_use = None if args.image else CALIB_FILE
+    # Usar calibración también para imágenes desde archivo
+    calib_to_use = CALIB_FILE if os.path.exists(CALIB_FILE) else None
     
     try:
         system = WasteClassificationSystem(

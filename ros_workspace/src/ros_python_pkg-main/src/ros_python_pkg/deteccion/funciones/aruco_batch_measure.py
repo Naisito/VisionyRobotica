@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 from typing import Optional, Dict, Any, List, Tuple
 
@@ -149,6 +150,11 @@ def process_items(items_list: List[Dict], det: Dict, mm_per_px: float) -> List[D
             dy = punto_2_mm["y_mm"] - punto_1_mm["y_mm"]
             dist = np.sqrt(dx*dx + dy*dy)
             obj_result["distancia_punto1_punto2_mm"] = round(dist, 2)
+            
+            # Calcular ángulo de la línea punto_1 -> punto_2
+            angulo_rad = math.atan2(dy, dx)
+            angulo_deg = math.degrees(angulo_rad)
+            obj_result["angulo_grados"] = round(angulo_deg, 2)
             
         processed.append(obj_result)
     return processed

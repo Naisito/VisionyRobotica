@@ -1,0 +1,42 @@
+{
+  "imagen": "imagenes/temp_foto.png",
+  "aruco": {
+    "ids": [
+      42,
+      7
+    ],
+    "reference_id": 42,
+    "center_px": {
+      "x": 1042.2354736328125,
+      "y": 655.6698608398438
+    },
+    "avg_mm_per_px": 0.705442237844557
+  },
+  "objetos": [
+    {
+      "id": 4,
+      "tipo": "RECT",
+      "punto_central": {
+        "x_px": 638,
+        "y_px": 245,
+        "x_mm": -285.16,
+        "y_mm": -289.7
+      },
+      "punto_1": {
+        "x_px": 634,
+        "y_px": 203,
+        "x_mm": -287.99,
+        "y_mm": -319.33
+      },
+      "punto_2": {
+        "x_px": 642,
+        "y_px": 292,
+        "x_mm": -282.34,
+        "y_mm": -256.55
+      },
+      "distancia_punto1_punto2_mm": 63.04,
+      "angulo_grados": 84.86
+    }
+  ],
+  "contenedores": []
+}
