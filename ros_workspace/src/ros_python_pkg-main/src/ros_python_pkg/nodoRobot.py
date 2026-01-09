@@ -19,30 +19,39 @@ from actionlib import SimpleActionClient
 # Coordenadas de referencia del ArUco en el frame del robot (metros)
 ARUCO_REF_X = -0.5192520489268268
 ARUCO_REF_Y = 0.12140867764445455
+Z_MESA = 0.40593990077217484  # Altura Z de la mesa/superficie de trabajo
 
 
-def mm_to_pose(x_mm: float, y_mm: float, angulo_grados: float) -> Pose:
+def mm_to_pose(x_mm: float, y_mm: float, angulo_grados: float, altura_mm: float = 0.0) -> Pose:
     """
     Convierte coordenadas en mm (relativas al ArUco) a una Pose del robot.
     
     La cámara ve las coordenadas relativas al centro del ArUco.
     El robot tiene el ArUco en (ARUCO_REF_X, ARUCO_REF_Y).
     
+    Args:
+        x_mm, y_mm: Coordenadas en mm relativas al ArUco
+        angulo_grados: Ángulo de agarre en grados
+        altura_mm: Altura del objeto en mm (para ajustar Z de agarre)
+    
     Fórmula:
-        robot_x = ARUCO_REF_X - (x_mm / 1000)  # Resta porque - y - suma
+        robot_x = ARUCO_REF_X - (x_mm / 1000)
         robot_y = ARUCO_REF_Y + (y_mm / 1000)
+        robot_z = Z_MESA + altura_mm/1000 (para agarrar por encima del objeto)
     """
     # Convertir mm a metros
     x_m = x_mm / 1000.0
     y_m = y_mm / 1000.0
+    altura_m = altura_mm / 1000.0
     
     # Calcular posición en frame del robot
     robot_x = ARUCO_REF_X - x_m
     robot_y = ARUCO_REF_Y + y_m
+    robot_z = Z_MESA + altura_m  # Z ajustado con la altura del objeto
     
     pose = Pose()
-    pose.position = Point(x=robot_x, y=robot_y, z=0.40593990077217484)  # z=1 temporal
-    pose.orientation = Quaternion(x=-0.9978007158356853, y=-0.06628522535825553, z=1.6191291997066762e-05, w=1.0716411945185912e-05)   # orientación temporal
+    pose.position = Point(x=robot_x, y=robot_y, z=robot_z)
+    pose.orientation = Quaternion(x=-0.9978007158356853, y=-0.06628522535825553, z=1.6191291997066762e-05, w=1.0716411945185912e-05)
     
     return pose
 
@@ -83,35 +92,38 @@ class NodoRobot:
         """
         Callback que recibe coordenadas de objetos y las convierte a poses.
         
-        Formato del array: [id1, x1, y1, angulo1, id2, x2, y2, angulo2, ...]
-        Cada objeto ocupa 4 posiciones.
+        Formato del array: [id1, x1, y1, angulo1, altura1, id2, x2, y2, angulo2, altura2, ...]
+        Cada objeto ocupa 5 posiciones.
         """
         self.poses_objetos = []
         data = msg.data
         
-        # Cada objeto tiene 4 valores: id, x, y, angulo
-        num_objetos = len(data) // 4
+        # Cada objeto tiene 5 valores: id, x, y, angulo, altura
+        num_objetos = len(data) // 5
         
         for i in range(num_objetos):
-            idx = i * 4
+            idx = i * 5
             obj_id = int(data[idx])
             x_mm = data[idx + 1]
             y_mm = data[idx + 2]
             angulo = data[idx + 3]
+            altura_mm = data[idx + 4]
             
-            pose = mm_to_pose(x_mm, y_mm, angulo)
+            # Ahora mm_to_pose usa la altura para calcular Z
+            pose = mm_to_pose(x_mm, y_mm, angulo, altura_mm)
             
             self.poses_objetos.append({
                 'id': obj_id,
                 'x_mm': x_mm,
                 'y_mm': y_mm,
                 'angulo': angulo,
+                'altura_mm': altura_mm,
                 'pose': pose
             })
             
             rospy.loginfo(f"NodoRobot: Objeto {obj_id} -> "
-                         f"x={pose.position.x:.4f}m, y={pose.position.y:.4f}m, "
-                         f"angulo={angulo:.2f}°")
+                         f"x={pose.position.x:.4f}m, y={pose.position.y:.4f}m, z={pose.position.z:.4f}m, "
+                         f"altura={altura_mm:.1f}mm")
         
         rospy.loginfo(f"NodoRobot: Recibidas {num_objetos} poses de objetos")
 

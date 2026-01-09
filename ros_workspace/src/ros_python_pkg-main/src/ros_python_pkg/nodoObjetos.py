@@ -24,11 +24,11 @@ RESULT_JSON = os.path.join(PUNTOS_DIR, "resultados_mm.json")
 def leer_coordenadas_objetos() -> List[Dict[str, float]]:
     """
     Lee resultados_mm.json y devuelve una lista con las coordenadas
-    x_mm, y_mm del punto central y el ángulo de cada objeto.
+    x_mm, y_mm del punto central, el ángulo y la altura de cada objeto.
     
     Returns:
-        Lista de diccionarios con 'x', 'y', 'angulo' para cada objeto.
-        Ejemplo: [{'x': -285.16, 'y': -289.7, 'angulo': 84.86}, ...]
+        Lista de diccionarios con 'id', 'x', 'y', 'angulo', 'altura' para cada objeto.
+        Ejemplo: [{'id': 1, 'x': -285.16, 'y': -289.7, 'angulo': 84.86, 'altura': 120.5}, ...]
     """
     if not os.path.exists(RESULT_JSON):
         rospy.logwarn(f"Archivo no encontrado: {RESULT_JSON}")
@@ -47,13 +47,15 @@ def leer_coordenadas_objetos() -> List[Dict[str, float]]:
         x_mm = punto_central.get("x_mm")
         y_mm = punto_central.get("y_mm")
         angulo = obj.get("angulo_grados")
+        altura_mm = obj.get("altura_mm", 0.0)  # NUEVO: altura del objeto
         
         if x_mm is not None and y_mm is not None and angulo is not None:
             coordenadas.append({
                 'id': obj.get('id'),
                 'x': x_mm,
                 'y': y_mm,
-                'angulo': angulo
+                'angulo': angulo,
+                'altura': altura_mm  # NUEVO
             })
     
     return coordenadas
@@ -63,8 +65,8 @@ def coordenadas_to_array(coordenadas: List[Dict[str, float]]) -> Float32MultiArr
     """
     Convierte la lista de coordenadas a Float32MultiArray para publicar en ROS.
     
-    Formato del array: [id1, x1, y1, angulo1, id2, x2, y2, angulo2, ...]
-    Cada objeto ocupa 4 posiciones consecutivas.
+    Formato del array: [id1, x1, y1, angulo1, altura1, id2, x2, y2, angulo2, altura2, ...]
+    Cada objeto ocupa 5 posiciones consecutivas.
     """
     msg = Float32MultiArray()
     
@@ -72,21 +74,22 @@ def coordenadas_to_array(coordenadas: List[Dict[str, float]]) -> Float32MultiArr
     msg.layout.dim.append(MultiArrayDimension())
     msg.layout.dim[0].label = "objetos"
     msg.layout.dim[0].size = len(coordenadas)
-    msg.layout.dim[0].stride = len(coordenadas) * 4
+    msg.layout.dim[0].stride = len(coordenadas) * 5
     
     msg.layout.dim.append(MultiArrayDimension())
-    msg.layout.dim[1].label = "campos"  # id, x, y, angulo
-    msg.layout.dim[1].size = 4
-    msg.layout.dim[1].stride = 4
+    msg.layout.dim[1].label = "campos"  # id, x, y, angulo, altura
+    msg.layout.dim[1].size = 5
+    msg.layout.dim[1].stride = 5
     
-    # Llenar datos: [id, x, y, angulo] por cada objeto
+    # Llenar datos: [id, x, y, angulo, altura] por cada objeto
     data = []
     for coord in coordenadas:
         data.extend([
             float(coord.get('id', 0)),
             float(coord.get('x', 0)),
             float(coord.get('y', 0)),
-            float(coord.get('angulo', 0))
+            float(coord.get('angulo', 0)),
+            float(coord.get('altura', 0))  # NUEVO: altura
         ])
     
     msg.data = data

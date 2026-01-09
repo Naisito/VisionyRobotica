@@ -1,0 +1,5 @@
+d_near_px=-516.0
+d_far_px=-242.0
+corr_near=0.24537205067033188
+corr_far=0.4470961884810374
+marker_length_cm=4.8

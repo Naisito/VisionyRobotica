@@ -17,9 +17,63 @@ from deteccion.funciones.version_final_exporta_fotos import analyze_image
 from deteccion.funciones.aruco_batch_measure import detect_arucos, process_items
 import numpy as np
 
+# Fase 5: Altura de objetos (cámara horizontal)
+# Añadir path para importar desde alturaObjetos
+_ALTURA_DIR = os.path.join(os.path.dirname(__file__), "alturaObjetos")
+sys.path.insert(0, _ALTURA_DIR)
+try:
+    from camara_horizontal import camara_horizontal
+    ALTURA_DISPONIBLE = True
+except ImportError:
+    print("[AVISO] No se pudo importar camara_horizontal, altura no disponible")
+    ALTURA_DISPONIBLE = False
+
 IMAGENES_DIR = "imagenes"
 PUNTOS_DIR = "puntos"
 CALIB_FILE = os.path.join("clasificacion", "calibracion_camara.pkl")
+
+# Rutas para cálculo de altura (cámara horizontal)
+ALTURA_COEFFS_PATH = os.path.join(_ALTURA_DIR, "debug_out", "depth_correction_coeffs.txt")
+
+
+def calcular_altura_objeto(img_cenital, img_horizontal_path: str, x_px: int, y_px: int) -> float:
+    """
+    Calcula la altura de un objeto usando la cámara horizontal.
+    
+    Args:
+        img_cenital: Imagen cenital (numpy array)
+        img_horizontal_path: Ruta a la imagen horizontal
+        x_px, y_px: Coordenadas del centro del objeto en píxeles
+    
+    Returns:
+        Altura en mm, o 0.0 si no se puede calcular
+    """
+    if not ALTURA_DISPONIBLE:
+        return 0.0
+    
+    if not os.path.exists(img_horizontal_path):
+        print(f"[ALTURA] No existe imagen horizontal: {img_horizontal_path}")
+        return 0.0
+    
+    img_horizontal = cv2.imread(img_horizontal_path)
+    if img_horizontal is None:
+        print(f"[ALTURA] No se pudo cargar imagen horizontal")
+        return 0.0
+    
+    try:
+        altura_mm = camara_horizontal(
+            img_cenital=img_cenital,
+            img_horizontal=img_horizontal,
+            coordenadas_objeto=(x_px, y_px),
+            coeffs_path=ALTURA_COEFFS_PATH
+        )
+        if altura_mm is None:
+            return 0.0
+        print(f"[ALTURA] Objeto en ({x_px}, {y_px}) -> altura: {altura_mm:.2f} mm")
+        return float(altura_mm)
+    except Exception as e:
+        print(f"[ALTURA] Error calculando altura: {e}")
+        return 0.0
 
 
 def ensure_dirs():
@@ -150,9 +204,11 @@ def _map_to_classifier_filter(residue: str) -> str:
     return "botella" if residue == "botella" else residue
 
 
-def filter_points_by_classification(points_json_path: str, class_results: Dict[str, Any], desired_class_name: str) -> str:
+def filter_points_by_classification(points_json_path: str, class_results: Dict[str, Any], desired_class_name: str, 
+                                     img_cenital=None, img_horizontal_path: str = None) -> str:
     """Filter puntos JSON to only those whose central point lies inside any contour
-    of classified objects of desired_class_name. Returns path of filtered JSON.
+    of classified objects of desired_class_name. Calcula altura si hay imagen horizontal.
+    Returns path of filtered JSON.
     """
     # Nueva estrategia: usar los centros que devuelve la fase 2 (clasificación)
     # Si hay una detección cercana en el JSON de puntos, copiaremos p1/p2 desde ella.
@@ -182,6 +238,11 @@ def filter_points_by_classification(points_json_path: str, class_results: Dict[s
             except Exception:
                 continue
 
+        # Calcular altura del objeto si tenemos las imágenes
+        altura_mm = 0.0
+        if img_cenital is not None and img_horizontal_path:
+            altura_mm = calcular_altura_objeto(img_cenital, img_horizontal_path, cx, cy)
+
         # Buscar detección más cercana en el JSON de puntos
         best = None
         best_d = float("inf")
@@ -202,6 +263,7 @@ def filter_points_by_classification(points_json_path: str, class_results: Dict[s
             "id": cls.get("id", idx),
             "tipo": desired_class_name,
             "punto_central": {"x": cx, "y": cy},
+            "altura_mm": altura_mm,  # NUEVO: altura del objeto
             "es_tapon": False
         }
 
@@ -232,9 +294,11 @@ def filter_points_by_classification(points_json_path: str, class_results: Dict[s
         pc = obj.get("punto_central")
         p1 = obj.get("punto_1")
         p2 = obj.get("punto_2")
+        altura = obj.get("altura_mm", 0.0)
         print(f"- Objeto #{i}:")
         if pc:
             print(f"  punto_central: (x={pc['x']}, y={pc['y']})")
+        print(f"  altura: {altura:.2f} mm")
         if p1:
             print(f"  punto_1: (x={p1['x']}, y={p1['y']})")
         if p2:
@@ -353,9 +417,16 @@ def run_pipeline():
     desired_class_name = {"lata": "lata", "carton": "carton", "botella": "botella"}[residue]
     classifier_filter = _map_to_classifier_filter(residue)
 
+    # Ruta para imagen horizontal (cámara lateral para altura)
+    IMG_HORIZONTAL_PATH = os.path.join(IMAGENES_DIR, "captura_horizontal.png")
+
     if modo == "camara":
         # Fase 1 (captura con calibración)
         captura_path = capture_image(camera_id=1, width=1280, height=720)
+        
+        # Cargar imagen cenital para cálculo de altura
+        img_cenital = cv2.imread(captura_path)
+        
         # Fase 2: usar script por argumentos
         json_out = os.path.join(IMAGENES_DIR, "fase2_resultados.json")
         fase2 = process_with_classifier_via_script(captura_path, classifier_filter, json_out)
@@ -364,8 +435,11 @@ def run_pipeline():
             return
         # Fase 3 (detectar puntos)
         fase3 = detect_points_and_visualize(captura_path)
-        # Filtrar puntos por clasificación
-        puntos_filtrados = filter_points_by_classification(fase3["puntos_json"], fase2, desired_class_name)
+        # Filtrar puntos por clasificación (con altura)
+        puntos_filtrados = filter_points_by_classification(
+            fase3["puntos_json"], fase2, desired_class_name,
+            img_cenital=img_cenital, img_horizontal_path=IMG_HORIZONTAL_PATH
+        )
         # Fase 4 (medir solo puntos filtrados)
         measure_with_aruco(captura_path, puntos_filtrados, aruco_mm=50.0, dict_name="AUTO")
         print("\nFlujo completado en modo cámara.")
@@ -375,6 +449,10 @@ def run_pipeline():
         if not os.path.exists(image_path):
             print(f"[ERROR] No se encontró la imagen: {image_path}")
             return
+        
+        # Cargar imagen cenital para cálculo de altura
+        img_cenital = cv2.imread(image_path)
+        
         # Fase 2: usar script por argumentos
         json_out = os.path.join(IMAGENES_DIR, "fase2_resultados.json")
         fase2 = process_with_classifier_via_script(image_path, classifier_filter, json_out)
@@ -383,8 +461,11 @@ def run_pipeline():
             return
         # Fase 3 (detectar puntos)
         fase3 = detect_points_and_visualize(image_path)
-        # Filtrar puntos por clasificación
-        puntos_filtrados = filter_points_by_classification(fase3["puntos_json"], fase2, desired_class_name)
+        # Filtrar puntos por clasificación (con altura)
+        puntos_filtrados = filter_points_by_classification(
+            fase3["puntos_json"], fase2, desired_class_name,
+            img_cenital=img_cenital, img_horizontal_path=IMG_HORIZONTAL_PATH
+        )
         # Fase 4 (medir solo puntos filtrados)
         measure_with_aruco(image_path, puntos_filtrados, aruco_mm=50.0, dict_name="AUTO")
         print("\nFlujo completado en modo foto.")
