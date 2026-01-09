@@ -5,3 +5,5 @@ FALTA:
 3. 2 camaras
 4. Nodo central (peticiones)
 5. Nodo ROBOT
+
+En la imagen creada por clasificacion se detecta correctamente el iobjeto y su centro, pero luego en la fase3 se detectan 9 puntos y ninguno parece coincidir que sea el mismo porque luego lo filtra. Haz que el centro del objeto sacado por clasificacion sea el que se utilice para crear el json y luego pasarlo a mm y no el de deteccion, en deteccion 

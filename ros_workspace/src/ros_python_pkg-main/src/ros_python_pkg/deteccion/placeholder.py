@@ -142,15 +142,24 @@ def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: f
     if not markers:
         raise RuntimeError("No se detectaron marcadores ArUco.")
 
-    scales = [float(aruco_mm) / max(m["W_px"], 1e-6) for m in markers]
-    mm_per_px = float(np.mean(scales))
-    main_marker = max(markers, key=lambda m: m["W_px"])
+    # Forzar uso de ArUco ID=7 como referencia
+    REF_MARKER_ID = 7
+    main_marker = None
+    for m in markers:
+        if int(m.get("id")) == REF_MARKER_ID:
+            main_marker = m
+            break
+    if main_marker is None:
+        raise RuntimeError(f"No se encontró el marcador ArUco ID={REF_MARKER_ID}")
+
+    # Calcular escala solo con el marcador de referencia
+    mm_per_px = float(aruco_mm) / max(main_marker["W_px"], 1e-6)
 
     results = {
         "imagen": image_path,
         "aruco": {
-            "ids": [m["id"] for m in markers],
-            "reference_id": main_marker["id"],
+            "ids": [REF_MARKER_ID],
+            "reference_id": REF_MARKER_ID,
             "center_px": main_marker["center_px"],
             "avg_mm_per_px": mm_per_px
         },

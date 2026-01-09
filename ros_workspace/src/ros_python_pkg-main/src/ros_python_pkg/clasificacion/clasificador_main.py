@@ -624,6 +624,8 @@ class WasteClassificationSystem:
                     'center': (cx, cy),
                     'contour': contour
                 })
+                # Imprimir objeto añadido
+                print(f"[CLASIFICACIÓN] Objeto #{i+1}: {class_name} (conf: {confidence:.0%}) centro: ({cx}, {cy})")
             
             # Mostrar resultados en consola
             print(f"\n{'='*60}")

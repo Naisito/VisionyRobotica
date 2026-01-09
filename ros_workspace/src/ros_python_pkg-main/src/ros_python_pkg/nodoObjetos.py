@@ -151,5 +151,6 @@ class NodoObjetos:
 
 if __name__ == "__main__":
     node = NodoObjetos()
+    coord_dict = run_pipeline(node.img_cam1, "carton")
     node.start()
 

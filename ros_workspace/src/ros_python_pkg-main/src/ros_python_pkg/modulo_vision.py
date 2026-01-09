@@ -154,45 +154,66 @@ def filter_points_by_classification(points_json_path: str, class_results: Dict[s
     """Filter puntos JSON to only those whose central point lies inside any contour
     of classified objects of desired_class_name. Returns path of filtered JSON.
     """
+    # Nueva estrategia: usar los centros que devuelve la fase 2 (clasificación)
+    # Si hay una detección cercana en el JSON de puntos, copiaremos p1/p2 desde ella.
     with open(points_json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # Collect contours for desired class ('lata', 'carton', 'botella') from classification
-    contours = []
-    for r in class_results.get("results", []):
-        if r.get("class") == desired_class_name:
-            c = r.get("contour")
-            if c is not None:
-                # Convert list to numpy array if necessary
-                if isinstance(c, list):
-                    c = np.array(c, dtype=np.int32)
-                contours.append(c)
+    det_objs = data.get("objetos", [])
 
-    # Filter objetos by point-in-polygon (punto_central)
+    classified = [r for r in class_results.get("results", []) if r.get("class") == desired_class_name]
+
     filtered_objs = []
-    for obj in data.get("objetos", []):
-        pc = obj.get("punto_central") or obj.get("center")
-        if not pc:
+    # umbral de distancia para emparejar detecciones (px)
+    MAX_MATCH_DIST = 80
+    import math
+
+    for idx, cls in enumerate(classified, start=1):
+        # cls['center'] puede ser dict {'x','y'} o lista/tupla
+        center = cls.get("center")
+        if not center:
             continue
-        x, y = int(pc.get("x")), int(pc.get("y"))
-        inside = False
-        for contour in contours:
-            # Ensure proper shape for pointPolygonTest
-            if isinstance(contour, np.ndarray):
-                if len(contour.shape) == 3 and contour.shape[1] == 1:
-                    cnt_pts = contour
-                else:
-                    cnt_pts = contour.reshape((-1, 1, 2)) if contour.size > 0 else contour
-            else:
-                # Already a list, convert to array
-                contour = np.array(contour, dtype=np.int32)
-                cnt_pts = contour.reshape((-1, 1, 2)) if contour.size > 0 else contour
-            
-            if cnt_pts.size > 0 and cv2.pointPolygonTest(cnt_pts, (x, y), False) >= 0:
-                inside = True
-                break
-        if inside:
-            filtered_objs.append(obj)
+        if isinstance(center, dict):
+            cx = int(center.get("x"))
+            cy = int(center.get("y"))
+        else:
+            try:
+                cx = int(center[0]); cy = int(center[1])
+            except Exception:
+                continue
+
+        # Buscar detección más cercana en el JSON de puntos
+        best = None
+        best_d = float("inf")
+        for dobj in det_objs:
+            pc = dobj.get("punto_central") or dobj.get("center")
+            if not pc:
+                continue
+            try:
+                px = int(pc.get("x"))
+                py = int(pc.get("y"))
+            except Exception:
+                continue
+            d = math.hypot(px - cx, py - cy)
+            if d < best_d:
+                best_d = d; best = dobj
+
+        new_obj = {
+            "id": cls.get("id", idx),
+            "tipo": desired_class_name,
+            "punto_central": {"x": cx, "y": cy},
+            "es_tapon": False
+        }
+
+        # Si encontramos una detección cercana, copiamos p1/p2 y 'es_tapon' si existen
+        if best is not None and best_d <= MAX_MATCH_DIST:
+            if "punto_1" in best and "punto_2" in best:
+                new_obj["punto_1"] = best["punto_1"]
+                new_obj["punto_2"] = best["punto_2"]
+            if "es_tapon" in best:
+                new_obj["es_tapon"] = best.get("es_tapon", False)
+
+        filtered_objs.append(new_obj)
 
     filtered = {
         "imagen": data.get("imagen"),
@@ -205,10 +226,10 @@ def filter_points_by_classification(points_json_path: str, class_results: Dict[s
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(filtered, f, indent=2, ensure_ascii=False)
 
-    # Print only the points of requested object
-    print("\nPUNTOS DEL OBJETO PEDIDO:")
+    # Mostrar por consola los puntos resultantes
+    print("\nPUNTOS DEL OBJETO PEDIDO (usando centros de clasificación):")
     for i, obj in enumerate(filtered_objs, 1):
-        pc = obj.get("punto_central") or obj.get("center")
+        pc = obj.get("punto_central")
         p1 = obj.get("punto_1")
         p2 = obj.get("punto_2")
         print(f"- Objeto #{i}:")
@@ -238,18 +259,24 @@ def measure_with_aruco(image_path: str, puntos_json_path: str, aruco_mm: float =
     if not markers:
         raise RuntimeError("No se detectaron marcadores ArUco en la imagen.")
 
-    # Calcular mm/px promedio
-    scales = [float(aruco_mm) / max(m["W_px"], 1e-6) for m in markers]
-    mm_per_px = float(np.mean(scales))
+    # Forzar uso de ArUco ID=7 como referencia
+    REF_MARKER_ID = 7
+    main_marker = None
+    for m in markers:
+        if int(m.get("id")) == REF_MARKER_ID:
+            main_marker = m
+            break
+    if main_marker is None:
+        raise RuntimeError(f"No se encontró el marcador ArUco ID={REF_MARKER_ID}")
 
-    # Usar el marcador más grande como referencia
-    main_marker = max(markers, key=lambda m: m["W_px"])
+    # Calcular escala solo con el marcador de referencia
+    mm_per_px = float(aruco_mm) / max(main_marker["W_px"], 1e-6)
 
     results = {
         "imagen": image_path,
         "aruco": {
-            "ids": [m["id"] for m in markers],
-            "reference_id": main_marker["id"],
+            "ids": [REF_MARKER_ID],
+            "reference_id": REF_MARKER_ID,
             "center_px": main_marker["center_px"],
             "avg_mm_per_px": mm_per_px
         },

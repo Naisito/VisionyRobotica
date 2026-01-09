@@ -343,15 +343,24 @@ def save_points_json(image_name, detections):
     data = {"imagen": image_name, "objetos": []}
     for det in detections:
         gc, p1, p2 = det.get("grip_center"), det.get("grip_p1"), det.get("grip_p2")
-        if gc is None or p1 is None or p2 is None: continue
+        # Si no hay grip center, usamos el centroid como fallback
+        if gc is None:
+            gc = det.get("centroid")
+        if gc is None:
+            continue
         obj = {
             "id": det.get("id"),
             "tipo": det.get("type"),
             "punto_central": {"x": int(gc[0]), "y": int(gc[1])},
-            "punto_1": {"x": int(p1[0]), "y": int(p1[1])},
-            "punto_2": {"x": int(p2[0]), "y": int(p2[1])},
+            # Also provide 'center' with same shape as classifier JSON for easier matching
+            "center": {"x": int(gc[0]), "y": int(gc[1])},
             "es_tapon": det.get("has_cap", False) 
         }
+        if p1 is not None and p2 is not None:
+            obj.update({
+                "punto_1": {"x": int(p1[0]), "y": int(p1[1])},
+                "punto_2": {"x": int(p2[0]), "y": int(p2[1])}
+            })
         data["objetos"].append(obj)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
@@ -366,8 +375,61 @@ def _procesar_y_mostrar(img, nombre_archivo):
     img_corrected = apply_target_brightness_filter(img)
     
     gray = cv2.cvtColor(img_corrected, cv2.COLOR_BGR2GRAY)
-    detections, _ = get_detections(gray)
+    detections, roi = get_detections(gray)
     save_points_json(nombre_archivo, detections)
+    
+    # === CREAR Y GUARDAR IMAGEN DE VISUALIZACIÓN ===
+    # Convertir gray a BGR para dibujar en color
+    vis_img = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    
+    # Oscurecer ROI ligeramente para destacar objetos
+    if roi is not None and roi.sum() > 0:
+        overlay = vis_img.copy()
+        overlay[roi > 0] = (0, 0, 0)
+        vis_img = cv2.addWeighted(overlay, 0.25, vis_img, 0.75, 0)
+    
+    # Dibujar cada detección
+    for det in detections:
+        c = det.get("contour")
+        if c is not None:
+            # Contorno
+            color_contorno = (0, 255, 0) if det.get("has_cap") else (255, 255, 255)
+            cv2.drawContours(vis_img, [c], -1, color_contorno, 2)
+        
+        # Bounding box
+        x, y, w, h = det.get("bbox", (0, 0, 0, 0))
+        
+        # Punto central y línea de agarre
+        gc = det.get("grip_center")
+        p1 = det.get("grip_p1")
+        p2 = det.get("grip_p2")
+        
+        if gc is not None:
+            cv2.circle(vis_img, gc, 6, (0, 0, 255), -1)  # Centro en rojo
+        
+        if p1 is not None and p2 is not None:
+            cv2.line(vis_img, p1, p2, (220, 220, 220), 3)
+            cv2.circle(vis_img, p1, 5, (0, 0, 0), -1)
+            cv2.circle(vis_img, p2, 5, (0, 0, 0), -1)
+        
+        # Etiqueta
+        obj_type = det.get("type", "OBJ")
+        obj_id = det.get("id", 0)
+        color_txt = (255, 255, 0) if obj_type == "CYL" else (255, 200, 100)
+        cv2.rectangle(vis_img, (x, y - 40), (x + 100, y - 6), (0, 0, 0), -1)
+        label = f"#{obj_id} {obj_type}"
+        cv2.putText(vis_img, label, (x + 5, y - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color_txt, 2)
+    
+    # Texto de cantidad de objetos
+    cv2.putText(vis_img, f"Objetos: {len(detections)}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (230, 230, 230), 2)
+    
+    # Guardar imagen de visualización
+    os.makedirs("imagenes", exist_ok=True)
+    base = os.path.splitext(os.path.basename(nombre_archivo))[0]
+    vis_output_path = os.path.join("imagenes", f"fase3_deteccion_{base}.png")
+    cv2.imwrite(vis_output_path, vis_img)
+    print(f"[Fase 3] Imagen de detección guardada: {vis_output_path}")
+    print(f"[Fase 3 completada] {len(detections)} puntos detectados")
 
 # =========================
 # Funciones Modos

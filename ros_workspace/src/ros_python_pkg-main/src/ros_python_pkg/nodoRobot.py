@@ -41,8 +41,8 @@ def mm_to_pose(x_mm: float, y_mm: float, angulo_grados: float) -> Pose:
     robot_y = ARUCO_REF_Y + y_m
     
     pose = Pose()
-    pose.position = Point(x=robot_x, y=robot_y, z=1.0)  # z=1 temporal
-    pose.orientation = Quaternion(x=0, y=0, z=0, w=1)   # orientación temporal
+    pose.position = Point(x=robot_x, y=robot_y, z=0.40593990077217484)  # z=1 temporal
+    pose.orientation = Quaternion(x=-0.9978007158356853, y=-0.06628522535825553, z=1.6191291997066762e-05, w=1.0716411945185912e-05)   # orientación temporal
     
     return pose
 
@@ -61,9 +61,23 @@ class NodoRobot:
         # Lista de poses de objetos detectados
         self.poses_objetos = []
         
+        # Gesto recibido (tipo de residuo)
+        self.gesto_recibido = None
+        
         # Suscriptor al topic de coordenadas
         rospy.Subscriber('coordenadas_objetos', Float32MultiArray, self._coordenadas_cb, queue_size=10)
-        rospy.loginfo("NodoRobot: Suscrito a 'coordenadas_objetos'")
+        rospy.Subscriber('nc_gestos', String, self._gesto_cb, queue_size=10)
+        rospy.loginfo("NodoRobot: Suscrito a 'coordenadas_objetos' y 'nc_gestos'")
+        
+    def _gesto_cb(self, msg: String) -> None:
+        """Callback que recibe el gesto (tipo de residuo: lata, carton, botella)."""
+        gesto = msg.data.lower().strip()
+        self.gesto_recibido = gesto
+        rospy.loginfo(f"NodoRobot: Gesto recibido -> '{gesto}'")
+    
+    def obtener_gesto(self) -> str:
+        """Devuelve el último gesto recibido."""
+        return self.gesto_recibido
 
     def _coordenadas_cb(self, msg: Float32MultiArray) -> None:
         """
@@ -172,71 +186,87 @@ class NodoRobot:
     
 
 if __name__ == '__main__':
-    from poses import torre1, torre2, punto0
-    from poses import torre1, torre2
+    from poses import torre1, torre2, home, basura_carton, basura_botella, basura_lata
     
     node = NodoRobot()
     
-    suelo = node.añadir_suelo()
-   
-    node.añadir_caja_a_escena_de_planificacion(torre1,"torre1",(.07,.07,.77))
-
-    node.añadir_caja_a_escena_de_planificacion(torre2,"torre2",(.16,.76,.23))
-
-    home_nuestro = [2.103938102722168, -1.9056993923582972, 1.328787628804342, -0.9948828977397461, -1.5678799788104456, 0.39615392684936523]
-    node.mover_articulaciones(home_nuestro)
-    pose_home = node.pose_actual()
-    pose_home.position.x = -0.40412
-    pose_home.position.y = 0.1709
-    #pose_home.position.z -= .1
-
-    '''
-    Prueba1
-        "x_mm": -220,07
-        "y_mm": 127.1
-
-        x= 0.29918
-        y= 0.2485
-
-        esperado:
-        x= 0.34918
-        y= 0.2285
+    # 1. Añadir suelo (ya se hace en __init__, pero por si acaso)
+    rospy.loginfo("Configurando escena de planificación...")
     
-    Prueba2
-        "x_mm": -556.45,
-        "y_mm": 122.19
+    # 2. Añadir las 2 torres
+    node.añadir_caja_a_escena_de_planificacion(torre1, "torre1", (.07, .07, .77))
+    node.añadir_caja_a_escena_de_planificacion(torre2, "torre2", (.16, .76, .23))
+    rospy.loginfo("Torres añadidas a la escena")
+    
+    # 3. Mover a home
+    rospy.loginfo("Moviendo a posición HOME...")
+    node.mover_a_pose(home)
+    rospy.loginfo("En posición HOME")
+    
+    # 4. Abrir garra a 100
+    rospy.loginfo("Abriendo garra...")
+    node.mover_pinza(100, 20)
+    rospy.loginfo("Garra abierta")
+    
+    # 5. Esperar coordenadas del topic y moverse a ellas
+    rospy.loginfo("Esperando coordenadas de objetos en topic 'coordenadas_objetos'...")
+    
+    rate = rospy.Rate(1)  # 1 Hz
+    while not rospy.is_shutdown():
+        poses = node.obtener_poses_objetos()
         
-        x= 0.0372
-        y= 0.24359
+        if poses:
+            rospy.loginfo(f"Recibidas {len(poses)} coordenadas de objetos")
+            
+            for obj in poses:
+                obj_id = obj['id']
+                pose = obj['pose']
+                
+                rospy.loginfo(f"Moviendo al objeto {obj_id}: "
+                             f"x={pose.position.x:.4f}m, y={pose.position.y:.4f}m")
+                
+                # 6. Mover al objeto
+                success = node.mover_a_pose(pose)
+                
+                if success:
+                    rospy.loginfo(f"Llegué al objeto {obj_id}")
+                    
+                    # 7. Cerrar garra para agarrar el objeto
+                    rospy.loginfo("Cerrando garra...")
+                    node.mover_pinza(0, 40)
+                    rospy.loginfo("Garra cerrada - objeto agarrado")
+                    
+                    # 8. Mover a posición basura_carton
+                    rospy.loginfo("Moviendo a basura...")
+                    tipo_residuo = node.obtener_gesto()
+                    if (tipo_residuo == "carton"):
+                        node.mover_a_pose(basura_carton)
+                    elif (tipo_residuo == "botella"):
+                        node.mover_a_pose(basura_botella)
+                    elif (tipo_residuo == "lata"):
+                        node.mover_a_pose(basura_lata)
+                    else:
+                        print('Tipo de residuo desconocido')
+                        
+                    rospy.loginfo("En posición basura")
 
-        esperado:
-        x= -0.08
-        y= -0.02
+                    # 9. Abrir garra para soltar
+                    rospy.loginfo("Abriendo garra para soltar...")
+                    node.mover_pinza(100, 20)
+                    rospy.loginfo("Objeto soltado")
+                    
+                else:
+                    rospy.logwarn(f"No pude llegar al objeto {obj_id}")
+            
+            # 10. Terminar
+            rospy.loginfo("Moviendo a posición HOME...")
+            node.mover_a_pose(home)
+            rospy.loginfo("Tarea completada. Finalizando...")
+            break  # Salir del bucle y terminar
         
-    Prueba3
-        "x_mm": -218.67,
-        "y_mm": 236.65
-
-        x= 0.30058
-        y= 0.35805
-        
-        esperado:
-        x= -0.04
-        y= 0.04
-        
-    Prueba4
-        "x_mm": -115.13,
-        "y_mm": 49.5
-
-        x=0.40412
-        y=0.1709
-        
-        no llega sin cambiar z
-          
-    '''
-
-    node.mover_articulaciones(pose_home)
+        rate.sleep()
+    
+    rospy.loginfo("Nodo robot finalizado.")
 
 
-    home_nuestro = [2.103938102722168, -1.9056993923582972, 1.328787628804342, -0.9948828977397461, -1.5678799788104456, 0.39615392684936523]
-    node.mover_articulaciones(home_nuestro)
+

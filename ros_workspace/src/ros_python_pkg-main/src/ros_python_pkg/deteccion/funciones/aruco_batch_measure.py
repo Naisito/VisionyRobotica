@@ -195,9 +195,18 @@ def main():
     mm_per_px = float(np.mean(scales))
     print(f"[INFO] Using Average mm/px = {mm_per_px:.4f}")
 
-    # Use the largest marker as the coordinate origin reference
-    main_marker = max(markers, key=lambda m: m["W_px"])
-    print(f"[INFO] Using Marker ID={main_marker['id']} as origin reference.")
+    # Prefer using hard-coded reference marker ID=7 if present, otherwise use the largest marker
+    REF_MARKER_ID = 7
+    main_marker = None
+    for m in markers:
+        if int(m.get("id")) == REF_MARKER_ID:
+            main_marker = m
+            break
+    if main_marker is None:
+        main_marker = max(markers, key=lambda m: m["W_px"])
+        print(f"[INFO] Marker ID={REF_MARKER_ID} not found; falling back to largest marker ID={main_marker['id']} as origin reference.")
+    else:
+        print(f"[INFO] Using hard-coded Marker ID={REF_MARKER_ID} as origin reference.")
 
     # Process all objects and containers
     results = {

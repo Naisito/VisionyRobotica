@@ -126,12 +126,22 @@ def filter_points_by_classification(points_data: Dict[str, Any], class_results: 
     """Filtra puntos por clasificación (en memoria)."""
     contours = []
     for r in class_results.get("results", []):
-        if r.get("class") == desired_class_name:
+        clase = r.get("class", "")
+        # Comparación case-insensitive
+        if clase.upper() == desired_class_name.upper():
             c = r.get("contour")
             if c is not None:
                 if isinstance(c, list):
                     c = np.array(c, dtype=np.int32)
                 contours.append(c)
+                # Debug: mostrar bounding box del contorno
+                if c.size > 0:
+                    c_reshaped = c.reshape(-1, 2) if len(c.shape) != 2 else c
+                    x_min, y_min = c_reshaped.min(axis=0)
+                    x_max, y_max = c_reshaped.max(axis=0)
+                    print(f"[DEBUG] Contorno '{clase}': bbox=({x_min},{y_min})-({x_max},{y_max})")
+
+    print(f"[DEBUG] Contornos encontrados para '{desired_class_name}': {len(contours)}")
 
     filtered_objs = []
     for obj in points_data.get("objetos", []):
@@ -139,8 +149,9 @@ def filter_points_by_classification(points_data: Dict[str, Any], class_results: 
         if not pc:
             continue
         x, y = int(pc.get("x", 0)), int(pc.get("y", 0))
+        print(f"[DEBUG] Punto ID={obj.get('id')}: ({x}, {y})")
         inside = False
-        for contour in contours:
+        for i, contour in enumerate(contours):
             if isinstance(contour, np.ndarray):
                 if len(contour.shape) == 3 and contour.shape[1] == 1:
                     cnt_pts = contour
@@ -150,12 +161,16 @@ def filter_points_by_classification(points_data: Dict[str, Any], class_results: 
                 contour = np.array(contour, dtype=np.int32)
                 cnt_pts = contour.reshape((-1, 1, 2)) if contour.size > 0 else contour
             
-            if cnt_pts.size > 0 and cv2.pointPolygonTest(cnt_pts, (x, y), False) >= 0:
-                inside = True
-                break
+            if cnt_pts.size > 0:
+                result = cv2.pointPolygonTest(cnt_pts, (x, y), False)
+                print(f"[DEBUG]   -> Contorno {i}: pointPolygonTest = {result}")
+                if result >= 0:
+                    inside = True
+                    break
         if inside:
             filtered_objs.append(obj)
 
+    print(f"[DEBUG] Objetos filtrados: {len(filtered_objs)}")
     return {
         "imagen": points_data.get("imagen"),
         "objetos": filtered_objs,
@@ -178,15 +193,24 @@ def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: f
     if not markers:
         raise RuntimeError("No se detectaron marcadores ArUco.")
 
-    scales = [float(aruco_mm) / max(m["W_px"], 1e-6) for m in markers]
-    mm_per_px = float(np.mean(scales))
-    main_marker = max(markers, key=lambda m: m["W_px"])
+    # Forzar uso de ArUco ID=7 como referencia
+    REF_MARKER_ID = 7
+    main_marker = None
+    for m in markers:
+        if int(m.get("id")) == REF_MARKER_ID:
+            main_marker = m
+            break
+    if main_marker is None:
+        raise RuntimeError(f"No se encontró el marcador ArUco ID={REF_MARKER_ID}")
+
+    # Calcular escala solo con el marcador de referencia
+    mm_per_px = float(aruco_mm) / max(main_marker["W_px"], 1e-6)
 
     results = {
         "imagen": image_path,
         "aruco": {
-            "ids": [m["id"] for m in markers],
-            "reference_id": main_marker["id"],
+            "ids": [REF_MARKER_ID],
+            "reference_id": REF_MARKER_ID,
             "center_px": main_marker["center_px"],
             "avg_mm_per_px": mm_per_px
         },
