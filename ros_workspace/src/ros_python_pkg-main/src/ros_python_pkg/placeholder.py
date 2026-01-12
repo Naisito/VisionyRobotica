@@ -15,6 +15,14 @@ try:
 except ImportError:
     print("[WARN] No se pudo importar CameraCalibration")
 
+# Importar función de cálculo de altura
+try:
+    from alturaObjetos.test_camara_horizontal import altura_objetos
+    ALTURA_DISPONIBLE = True
+except ImportError:
+    print("[WARN] No se pudo importar altura_objetos, las alturas serán 0.0")
+    ALTURA_DISPONIBLE = False
+
 IMAGENES_DIR = "imagenes"
 PUNTOS_DIR = "puntos"
 CALIB_FILE = os.path.join(os.path.dirname(__file__), "clasificacion", "calibracion_camara_cenital.pkl")
@@ -178,8 +186,18 @@ def filter_points_by_classification(points_data: Dict[str, Any], class_results: 
     }
 
 
-def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: float = 50.0, dict_name: str = "AUTO", clase_detectada: str = "") -> Dict[str, Any]:
-    """Fase 4: Mide con ArUco y genera imagen final."""
+def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: float = 50.0, dict_name: str = "AUTO", clase_detectada: str = "", img_cenital=None, img_horizontal=None) -> Dict[str, Any]:
+    """Fase 4: Mide con ArUco y genera imagen final.
+    
+    Args:
+        image_path: Ruta a la imagen cenital
+        points_data: Datos de los puntos detectados
+        aruco_mm: Tamaño del marcador ArUco en mm
+        dict_name: Diccionario de ArUco a usar
+        clase_detectada: Clase del objeto detectado
+        img_cenital: Imagen cenital para cálculo de altura (opcional)
+        img_horizontal: Imagen horizontal para cálculo de altura (opcional)
+    """
     ensure_dirs()
 
     frame = cv2.imread(image_path, cv2.IMREAD_COLOR)
@@ -206,6 +224,44 @@ def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: f
     # Calcular escala solo con el marcador de referencia
     mm_per_px = float(aruco_mm) / max(main_marker["W_px"], 1e-6)
 
+    # Procesar objetos y calcular alturas
+    objetos_procesados = process_items(points_data.get("objetos", []), main_marker, mm_per_px)
+    
+    # Calcular altura para cada objeto si hay imágenes disponibles
+    if ALTURA_DISPONIBLE and img_cenital is not None and img_horizontal is not None:
+        print("[INFO] Calculando alturas de objetos...")
+        for obj in objetos_procesados:
+            pc = obj.get("punto_central")
+            if pc:
+                x_px = int(pc.get("x_px", 0))
+                y_px = int(pc.get("y_px", 0))
+                
+                if x_px > 0 and y_px > 0:
+                    try:
+                        altura_mm = altura_objetos(
+                            x=x_px,
+                            y=y_px,
+                            img_cenital=img_cenital,
+                            img_horizontal=img_horizontal
+                        )
+                        obj["altura_mm"] = round(altura_mm, 2)
+                        print(f"[INFO] Objeto ID={obj.get('id')}: altura={altura_mm:.2f} mm")
+                    except Exception as e:
+                        print(f"[WARN] Error calculando altura para objeto {obj.get('id')}: {e}")
+                        obj["altura_mm"] = 0.0
+                else:
+                    obj["altura_mm"] = 0.0
+            else:
+                obj["altura_mm"] = 0.0
+    else:
+        # Si no hay imágenes disponibles, altura por defecto
+        for obj in objetos_procesados:
+            obj["altura_mm"] = 0.0
+        if not ALTURA_DISPONIBLE:
+            print("[WARN] Función de altura no disponible, usando altura=0.0")
+        else:
+            print("[WARN] Imágenes de cámara no disponibles, usando altura=0.0")
+
     results = {
         "imagen": image_path,
         "aruco": {
@@ -214,7 +270,7 @@ def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: f
             "center_px": main_marker["center_px"],
             "avg_mm_per_px": mm_per_px
         },
-        "objetos": process_items(points_data.get("objetos", []), main_marker, mm_per_px),
+        "objetos": objetos_procesados,
         "contenedores": process_items(points_data.get("contenedores", []), main_marker, mm_per_px)
     }
 
@@ -287,12 +343,13 @@ def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: f
     return results
 
 
-def run_pipeline(foto, residue_name):
+def run_pipeline(foto, residue_name, img_horizontal=None):
     """Ejecuta el flujo completo.
     
     Args:
-        foto: Imagen numpy (BGR)
+        foto: Imagen numpy (BGR) de la cámara cenital
         residue_name: 'lata', 'carton' o 'botella'
+        img_horizontal: Imagen numpy (BGR) de la cámara horizontal (opcional, para cálculo de altura)
     
     Returns:
         dict con resultados o None si no hay objetos
@@ -325,9 +382,17 @@ def run_pipeline(foto, residue_name):
     filtered_points = filter_points_by_classification(points_data, fase2, desired_class_name)
     print(f"[DEBUG] Puntos filtrados: {len(filtered_points.get('objetos', []))}")
     
-    # Fase 4: medir y generar imagen final
+    # Fase 4: medir y generar imagen final (con cálculo de altura)
     print("[DEBUG] Iniciando Fase 4: medición ArUco...")
-    results = measure_with_aruco(image_path, filtered_points, aruco_mm=48.0, dict_name="AUTO", clase_detectada=desired_class_name)
+    results = measure_with_aruco(
+        image_path, 
+        filtered_points, 
+        aruco_mm=48.0, 
+        dict_name="AUTO", 
+        clase_detectada=desired_class_name,
+        img_cenital=foto,
+        img_horizontal=img_horizontal
+    )
     print("[DEBUG] Pipeline completado")
     
     return results

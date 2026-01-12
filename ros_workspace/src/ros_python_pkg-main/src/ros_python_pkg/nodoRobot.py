@@ -148,7 +148,10 @@ class NodoRobot:
     
     def mover_a_pose(self, pose_goal: Pose, wait: bool=True) -> bool:
         self.move_group.set_pose_target(pose_goal)
-        return self.move_group.go(wait=wait)
+        for i in range(10):
+            if (res := self.move_group.go(wait=wait)):
+                break
+        return res
     
     def añadir_caja_a_escena_de_planificacion(self, pose_caja: Pose, name: str,
                                   tamaño: tuple = (.1,.1,.1)) -> None:
@@ -199,9 +202,11 @@ class NodoRobot:
 
 if __name__ == '__main__':
     from poses import torre1, torre2, home, basura_carton, basura_botella, basura_lata
-    
+
     node = NodoRobot()
+    # node.subir(0.1)
     
+    # node.mover_articulaciones(basura_lata)
     # 1. Añadir suelo (ya se hace en __init__, pero por si acaso)
     rospy.loginfo("Configurando escena de planificación...")
     
@@ -212,7 +217,7 @@ if __name__ == '__main__':
     
     # 3. Mover a home
     rospy.loginfo("Moviendo a posición HOME...")
-    node.mover_a_pose(home)
+    node.mover_articulaciones(home)
     rospy.loginfo("En posición HOME")
     
     # 4. Abrir garra a 100
@@ -233,6 +238,8 @@ if __name__ == '__main__':
             for obj in poses:
                 obj_id = obj['id']
                 pose = obj['pose']
+                pose.position.x -= 0.02
+                
                 
                 rospy.loginfo(f"Moviendo al objeto {obj_id}: "
                              f"x={pose.position.x:.4f}m, y={pose.position.y:.4f}m")
@@ -242,21 +249,40 @@ if __name__ == '__main__':
                 
                 if success:
                     rospy.loginfo(f"Llegué al objeto {obj_id}")
+                    pose_inicial = node.pose_actual()
                     
-                    # 7. Cerrar garra para agarrar el objeto
-                    rospy.loginfo("Cerrando garra...")
-                    node.mover_pinza(0, 40)
-                    rospy.loginfo("Garra cerrada - objeto agarrado")
-                    
-                    # 8. Mover a posición basura_carton
                     rospy.loginfo("Moviendo a basura...")
                     tipo_residuo = node.obtener_gesto()
                     if (tipo_residuo == "carton"):
-                        node.mover_a_pose(basura_carton)
+                        pose_inicial.position.z -= 0.1305
                     elif (tipo_residuo == "botella"):
-                        node.mover_a_pose(basura_botella)
+                        pose_inicial.position.z -= 0.17
                     elif (tipo_residuo == "lata"):
-                        node.mover_a_pose(basura_lata)
+                        pose_inicial.position.z -= 0.17
+                    else:
+                        print('Tipo de residuo desconocido')
+                    
+                    
+                    
+                    node.mover_trayectoria([pose_inicial])
+                    # 7. Cerrar garra para agarrar el objeto
+                    rospy.loginfo("Cerrando garra...")
+                    node.mover_pinza(0, 40)
+                    
+                    rospy.loginfo("Garra cerrada - objeto agarrado")
+                    
+                    rospy.loginfo("Subiendo")
+                    node.subir(0.1)
+                    
+                    # 8. Mover a posición basura_carton
+                    #rospy.loginfo("Moviendo a basura...")
+                    #tipo_residuo = node.obtener_gesto()
+                    if (tipo_residuo == "carton"):
+                        node.mover_articulaciones(basura_carton)
+                    elif (tipo_residuo == "botella"):
+                        node.mover_articulaciones(basura_botella)
+                    elif (tipo_residuo == "lata"):
+                        node.mover_articulaciones(basura_lata)
                     else:
                         print('Tipo de residuo desconocido')
                         
@@ -272,7 +298,7 @@ if __name__ == '__main__':
             
             # 10. Terminar
             rospy.loginfo("Moviendo a posición HOME...")
-            node.mover_a_pose(home)
+            node.mover_articulaciones(home)
             rospy.loginfo("Tarea completada. Finalizando...")
             break  # Salir del bucle y terminar
         

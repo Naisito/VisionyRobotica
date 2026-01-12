@@ -5,6 +5,7 @@ import json
 import cv2
 from copy import deepcopy
 from typing import List, Dict, Any
+import time
 
 import rospy
 from std_msgs.msg import String, Float32MultiArray, MultiArrayDimension
@@ -14,6 +15,7 @@ from placeholder import run_pipeline
 
 # --- CONFIGURACIÓN DE RUTAS Y PARÁMETROS ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SCRIPT_DIR = os.path.join("/","home","laboratorio","ros_workspace")
 IMAGENES_DIR = os.path.join(SCRIPT_DIR, "imagenes")
 PUNTOS_DIR = os.path.join(SCRIPT_DIR, "puntos")
 CALIB_FILE = os.path.join(SCRIPT_DIR, "clasificacion", "calibracion_camara_cenital.pkl")
@@ -100,33 +102,70 @@ class NodoObjetos:
     def __init__(self):
         rospy.init_node('nodo_objetos', anonymous=False)
         self.bridge = CvBridge()
-        self.img_cam1 = None
+        self.img_cam1 = None  # Cámara cenital
+        self.img_cam2 = None  # Cámara horizontal
         self.procesando = False
+        self.tiempo_inicio = rospy.Time.now()  # Tiempo de inicio del nodo
         
         # Suscriptores
-        rospy.Subscriber('/cam1/usb_cam1/image_raw', Image, self._image_cb, queue_size=1)
+        rospy.Subscriber('/cam1/usb_cam1/image_raw', Image, self._image_cb_cam1, queue_size=1)
         rospy.wait_for_message('/cam1/usb_cam1/image_raw', Image)
-        rospy.Subscriber('nc_gestos', String, self._gesto_cb, queue_size=10)
+        
+        # Suscriptor para cámara horizontal (cam2) - opcional
+        try:
+            rospy.Subscriber('/cam2/usb_cam1/image_raw', Image, self._image_cb_cam2, queue_size=1)
+            rospy.wait_for_message('/cam2/usb_cam1/image_raw', Image)
+            rospy.loginfo("NodoObjetos: Suscrito a cámara horizontal (cam2)")
+        except Exception as e:
+            rospy.logwarn(f"NodoObjetos: No se pudo suscribir a cam2: {e}")
+        
+        rospy.Subscriber('nc_gestos', String, self.gesto_cb, queue_size=10)
         
         # Publicador de coordenadas como Float32MultiArray
-        self.pub_coordenadas = rospy.Publisher('coordenadas_objetos', Float32MultiArray, queue_size=10)
+        self.pub_coordenadas = rospy.Publisher('/coordenadas_objetos', Float32MultiArray, queue_size=10)
         
+        # Esperar 5 segundos para estabilizar las cámaras
+        rospy.loginfo("NodoObjetos: Esperando 5 segundos para estabilizar cámaras...")
+        rospy.sleep(5.0)
         rospy.loginfo("NodoObjetos: Nodo iniciado y esperando gestos e imagen de cámara...")
 
-    def _image_cb(self, msg):
+    def _image_cb_cam1(self, msg):
+        # Solo guardar frames después de 5 segundos desde el inicio
+        if (rospy.Time.now() - self.tiempo_inicio).to_sec() < 5.0:
+            return
+        
+        rospy.sleep(10.0)
+        
         try:
             self.img_cam1 = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         except Exception as e:
-            rospy.logerr(f"NodoObjetos: Error al convertir imagen: {e}")
+            rospy.logerr(f"NodoObjetos: Error al convertir imagen cam1: {e}")
+    
+    def _image_cb_cam2(self, msg):
+        # # Solo guardar frames después de 5 segundos desde el inicio
+        # if (rospy.Time.now() - self.tiempo_inicio).to_sec() < 5.0:
+        #     return
+        rospy.sleep(10.0)
+        try:
+            self.img_cam2 = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        except Exception as e:
+            rospy.logerr(f"NodoObjetos: Error al convertir imagen cam2: {e}")
 
-    def _gesto_cb(self, msg: String) -> None:
+    def gesto_cb(self, msg: String) -> None:
+        # Verificar que hayan pasado 5 segundos antes de procesar
+        tiempo_transcurrido = (rospy.Time.now() - self.tiempo_inicio).to_sec()
+        if tiempo_transcurrido < 5.0:
+            rospy.logwarn(f"NodoObjetos: Esperando estabilización de cámaras ({tiempo_transcurrido:.1f}/5.0 s)")
+            return
+        
         if self.procesando:
             rospy.logwarn("NodoObjetos: Ya hay un procesamiento en curso, ignorando gesto.")
-            return
+            return        
         
         self.procesando = True
         try:
-            imagen = deepcopy(self.img_cam1)
+            imagen_cenital = deepcopy(self.img_cam1)
+            imagen_horizontal = deepcopy(self.img_cam2) if self.img_cam2 is not None else None
             residue_type = msg.data.lower().strip()
             
             # Mapear gestos a tipos de residuo
@@ -135,7 +174,14 @@ class NodoObjetos:
                 return
             
             rospy.loginfo(f"NodoObjetos: Procesando gesto '{residue_type}'...")
-            run_pipeline(imagen, residue_type)
+            
+            # Llamar al pipeline con ambas imágenes
+            if imagen_horizontal is not None:
+                rospy.loginfo("NodoObjetos: Usando cámara horizontal para cálculo de altura")
+            else:
+                rospy.logwarn("NodoObjetos: Cámara horizontal no disponible, altura será 0.0")
+            
+            run_pipeline(imagen_cenital, residue_type, img_horizontal=imagen_horizontal)
             
             # Leer coordenadas del JSON y publicar
             coordenadas = leer_coordenadas_objetos()
@@ -143,6 +189,10 @@ class NodoObjetos:
                 msg_array = coordenadas_to_array(coordenadas)
                 self.pub_coordenadas.publish(msg_array)
                 rospy.loginfo(f"NodoObjetos: Publicadas {len(coordenadas)} coordenadas de objetos.")
+                
+                # Log de alturas
+                for coord in coordenadas:
+                    rospy.loginfo(f"  Objeto ID={coord.get('id')}: x={coord.get('x'):.2f}, y={coord.get('y'):.2f}, altura={coord.get('altura'):.2f} mm")
             else:
                 rospy.logwarn("NodoObjetos: No se encontraron objetos para publicar.")
         finally:
@@ -154,6 +204,8 @@ class NodoObjetos:
 
 if __name__ == "__main__":
     node = NodoObjetos()
-    coord_dict = run_pipeline(node.img_cam1, "carton")
+    # coord_dict = run_pipeline(node.img_cam1, "carton")
+    # while True:
+    #     node.gesto_cb(String(data="carton"))
     node.start()
 

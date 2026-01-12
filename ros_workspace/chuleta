@@ -1,0 +1,15 @@
+PC 10.172.21.25
+EN CADA TERMINAL:
+  export ROS_MASTER_URI=http://localhost:11311
+  export ROS_IP=10.172.21.25
+
+PC 10.172.21.112
+EN CADA TERMINAL:
+  export ROS_MASTER_URI=http://10.172.21.25:11311
+  export ROS_IP=10.172.21.112
+  
+DESPUÉS EN ESTE ORDEN:
+PC 10.172.21.25
+roslaunch ros_python_pkg sistema.launch
+PC 10.172.21.112
+roslaunch launcher_robots_lab_robotica sistema.launch
