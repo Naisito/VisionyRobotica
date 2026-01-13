@@ -204,6 +204,7 @@ if __name__ == '__main__':
     from poses import torre1, torre2, home, basura_carton, basura_botella, basura_lata
 
     node = NodoRobot()
+
     # node.subir(0.1)
     
     # node.mover_articulaciones(basura_lata)
@@ -238,7 +239,7 @@ if __name__ == '__main__':
             for obj in poses:
                 obj_id = obj['id']
                 pose = obj['pose']
-                pose.position.x -= 0.02
+                #pose.position.x -= 0.02
                 
                 
                 rospy.loginfo(f"Moviendo al objeto {obj_id}: "
@@ -255,10 +256,13 @@ if __name__ == '__main__':
                     tipo_residuo = node.obtener_gesto()
                     if (tipo_residuo == "carton"):
                         pose_inicial.position.z -= 0.1305
+                        fuerza=40
                     elif (tipo_residuo == "botella"):
-                        pose_inicial.position.z -= 0.17
+                        pose_inicial.position.z -= 0.18
+                        fuerza=30
                     elif (tipo_residuo == "lata"):
                         pose_inicial.position.z -= 0.17
+                        fuerza=25
                     else:
                         print('Tipo de residuo desconocido')
                     
@@ -267,7 +271,9 @@ if __name__ == '__main__':
                     node.mover_trayectoria([pose_inicial])
                     # 7. Cerrar garra para agarrar el objeto
                     rospy.loginfo("Cerrando garra...")
-                    node.mover_pinza(0, 40)
+                    node.mover_pinza(0, 30)
+                    
+                    rospy.sleep(2)
                     
                     rospy.loginfo("Garra cerrada - objeto agarrado")
                     
@@ -291,6 +297,7 @@ if __name__ == '__main__':
                     # 9. Abrir garra para soltar
                     rospy.loginfo("Abriendo garra para soltar...")
                     node.mover_pinza(100, 20)
+                    rospy.sleep(2)
                     rospy.loginfo("Objeto soltado")
                     
                 else:

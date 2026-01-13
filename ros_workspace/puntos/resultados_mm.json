@@ -6,37 +6,11 @@
     ],
     "reference_id": 7,
     "center_px": {
-      "x": 1006.2801513671875,
-      "y": 40.371952056884766
+      "x": 929.9122314453125,
+      "y": 49.83186721801758
     },
-    "avg_mm_per_px": 0.709428342105732
+    "avg_mm_per_px": 0.7246718422446958
   },
-  "objetos": [
-    {
-      "id": 4,
-      "tipo": "RECT",
-      "punto_central": {
-        "x_px": 610,
-        "y_px": 348,
-        "x_mm": -281.13,
-        "y_mm": 218.24
-      },
-      "punto_1": {
-        "x_px": 608,
-        "y_px": 300,
-        "x_mm": -282.55,
-        "y_mm": 184.19
-      },
-      "punto_2": {
-        "x_px": 613,
-        "y_px": 396,
-        "x_mm": -279.0,
-        "y_mm": 252.29
-      },
-      "distancia_punto1_punto2_mm": 68.2,
-      "angulo_grados": 87.02,
-      "altura_mm": 0.0
-    }
-  ],
+  "objetos": [],
   "contenedores": []
 }
