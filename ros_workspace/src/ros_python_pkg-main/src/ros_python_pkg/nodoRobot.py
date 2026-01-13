@@ -92,31 +92,29 @@ class NodoRobot:
         """
         Callback que recibe coordenadas de objetos y las convierte a poses.
         
-        Formato del array: [id1, x1, y1, angulo1, altura1, id2, x2, y2, angulo2, altura2, ...]
-        Cada objeto ocupa 5 posiciones.
+        Formato del array: [id1, x1, y1, altura1, id2, x2, y2, altura2, ...]
+        Cada objeto ocupa 4 posiciones.
         """
         self.poses_objetos = []
         data = msg.data
         
-        # Cada objeto tiene 5 valores: id, x, y, angulo, altura
-        num_objetos = len(data) // 5
+        # Cada objeto tiene 4 valores: id, x, y, altura
+        num_objetos = len(data) // 4
         
         for i in range(num_objetos):
-            idx = i * 5
+            idx = i * 4
             obj_id = int(data[idx])
             x_mm = data[idx + 1]
             y_mm = data[idx + 2]
-            angulo = data[idx + 3]
-            altura_mm = data[idx + 4]
+            altura_mm = data[idx + 3]
             
-            # Ahora mm_to_pose usa la altura para calcular Z
-            pose = mm_to_pose(x_mm, y_mm, angulo, altura_mm)
+            # mm_to_pose sin ángulo (se asume orientación predeterminada)
+            pose = mm_to_pose(x_mm, y_mm, 0.0, altura_mm)
             
             self.poses_objetos.append({
                 'id': obj_id,
                 'x_mm': x_mm,
                 'y_mm': y_mm,
-                'angulo': angulo,
                 'altura_mm': altura_mm,
                 'pose': pose
             })
@@ -261,8 +259,8 @@ if __name__ == '__main__':
                         pose_inicial.position.z -= 0.18
                         fuerza=30
                     elif (tipo_residuo == "lata"):
-                        pose_inicial.position.z -= 0.17
-                        fuerza=25
+                        pose_inicial.position.z -= 0.16
+                        fuerza=20
                     else:
                         print('Tipo de residuo desconocido')
                     

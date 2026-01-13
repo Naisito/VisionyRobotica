@@ -23,8 +23,10 @@ except ImportError:
     print("[WARN] No se pudo importar altura_objetos, las alturas serán 0.0")
     ALTURA_DISPONIBLE = False
 
-IMAGENES_DIR = "imagenes"
-PUNTOS_DIR = "puntos"
+# Usar rutas absolutas consistentes con nodoObjetos
+SCRIPT_DIR = os.path.join("/", "home", "laboratorio", "ros_workspace")
+IMAGENES_DIR = os.path.join(SCRIPT_DIR, "imagenes")
+PUNTOS_DIR = os.path.join(SCRIPT_DIR, "puntos")
 CALIB_FILE = os.path.join(os.path.dirname(__file__), "clasificacion", "calibracion_camara_cenital.pkl")
 
 # Cargar calibración global
@@ -186,15 +188,15 @@ def filter_points_by_classification(points_data: Dict[str, Any], class_results: 
     }
 
 
-def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: float = 50.0, dict_name: str = "AUTO", clase_detectada: str = "", img_cenital=None, img_horizontal=None) -> Dict[str, Any]:
+def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: float = 50.0, dict_name: str = "AUTO", clase_detectada: str = None, img_cenital=None, img_horizontal=None) -> Dict[str, Any]:
     """Fase 4: Mide con ArUco y genera imagen final.
     
     Args:
         image_path: Ruta a la imagen cenital
-        points_data: Datos de los puntos detectados
+        points_data: Datos de los puntos detectados (cada objeto puede tener su propia 'clase')
         aruco_mm: Tamaño del marcador ArUco en mm
         dict_name: Diccionario de ArUco a usar
-        clase_detectada: Clase del objeto detectado
+        clase_detectada: Clase fija para todos los objetos (deprecated, usar clase en cada objeto)
         img_cenital: Imagen cenital para cálculo de altura (opcional)
         img_horizontal: Imagen horizontal para cálculo de altura (opcional)
     """
@@ -224,8 +226,15 @@ def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: f
     # Calcular escala solo con el marcador de referencia
     mm_per_px = float(aruco_mm) / max(main_marker["W_px"], 1e-6)
 
+    # DEBUG: ver cuántos objetos llegan a measure_with_aruco
+    objetos_entrada = points_data.get("objetos", [])
+    print(f"[DEBUG measure_with_aruco] Recibidos {len(objetos_entrada)} objetos para medir")
+    for obj in objetos_entrada:
+        print(f"  - ID={obj.get('id')}, clase={obj.get('clase', 'N/A')}, centro={obj.get('punto_central')}")
+
     # Procesar objetos y calcular alturas
-    objetos_procesados = process_items(points_data.get("objetos", []), main_marker, mm_per_px)
+    objetos_procesados = process_items(objetos_entrada, main_marker, mm_per_px)
+    print(f"[DEBUG measure_with_aruco] Procesados {len(objetos_procesados)} objetos después de process_items")
     
     # Calcular altura para cada objeto si hay imágenes disponibles
     if ALTURA_DISPONIBLE and img_cenital is not None and img_horizontal is not None:
@@ -274,6 +283,11 @@ def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: f
         "contenedores": process_items(points_data.get("contenedores", []), main_marker, mm_per_px)
     }
 
+    # DEBUG: Verificar cuántos objetos se van a guardar
+    print(f"[DEBUG] Guardando JSON con {len(objetos_procesados)} objeto(s)")
+    for obj in objetos_procesados:
+        print(f"  - ID={obj.get('id')}, clase={obj.get('clase')}, x_mm={obj.get('punto_central', {}).get('x_mm')}, y_mm={obj.get('punto_central', {}).get('y_mm')}")
+
     # Guardar solo resultados_mm.json
     output_path = os.path.join(PUNTOS_DIR, "resultados_mm.json")
     with open(output_path, "w", encoding="utf-8") as f:
@@ -288,7 +302,6 @@ def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: f
         "CARTON": (0, 100, 255),    # Marrón/Naranja oscuro
         "BOTELLA": (0, 255, 0),     # Verde
     }
-    color = colores.get(clase_detectada.upper(), (255, 255, 0))  # Cian por defecto
     
     # Dibujar ArUcos
     for m in markers:
@@ -301,8 +314,10 @@ def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: f
     for obj_data in results.get("objetos", []):
         obj_id = obj_data.get("id")
         pc = obj_data.get("punto_central")
-        p1 = obj_data.get("punto_1")
-        p2 = obj_data.get("punto_2")
+        clase_obj = obj_data.get("clase", "DESCONOCIDO")  # Usar clase del objeto
+        
+        # Color según la clase del objeto
+        color = colores.get(clase_obj.upper(), (255, 255, 0))  # Cian por defecto
         
         if pc:
             # Obtener coordenadas en píxeles
@@ -316,18 +331,8 @@ def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: f
             cv2.circle(vis_img, (px, py), 10, color, -1)
             cv2.circle(vis_img, (px, py), 12, (255, 255, 255), 2)
             
-            # Dibujar puntos de agarre
-            if p1 and p2:
-                p1x = int(p1.get("x_px", p1.get("x", 0)))
-                p1y = int(p1.get("y_px", p1.get("y", 0)))
-                p2x = int(p2.get("x_px", p2.get("x", 0)))
-                p2y = int(p2.get("y_px", p2.get("y", 0)))
-                cv2.circle(vis_img, (p1x, p1y), 6, (255, 0, 0), -1)
-                cv2.circle(vis_img, (p2x, p2y), 6, (255, 0, 0), -1)
-                cv2.line(vis_img, (p1x, p1y), (p2x, p2y), (255, 0, 0), 2)
-            
-            # Etiqueta con tipo y ID para TODOS los objetos
-            label = f"{clase_detectada} #{obj_id}"
+            # Etiqueta con clase real del objeto y su ID
+            label = f"{clase_obj} #{obj_id}"
             (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
             # Fondo de la etiqueta
             cv2.rectangle(vis_img, (px - 5, py - th - 25), (px + tw + 10, py - 5), color, -1)
@@ -344,7 +349,7 @@ def measure_with_aruco(image_path: str, points_data: Dict[str, Any], aruco_mm: f
 
 
 def run_pipeline(foto, residue_name, img_horizontal=None):
-    """Ejecuta el flujo completo.
+    """Ejecuta el flujo completo usando solo clasificación (sin fase de detección).
     
     Args:
         foto: Imagen numpy (BGR) de la cámara cenital
@@ -364,35 +369,50 @@ def run_pipeline(foto, residue_name, img_horizontal=None):
     image_path = os.path.join(IMAGENES_DIR, "temp_foto.png")
     cv2.imwrite(image_path, foto)
     
-    # Fase 2: clasificación
-    fase2 = process_with_classifier_via_script(image_path, classifier_filter)
-    if not fase2.get("results"):
-        print(f"No se encontraron objetos de tipo '{residue_name}'.")
+    # Fase 1: Clasificación (devuelve centro, contorno y clase)
+    print("[INFO] Iniciando clasificación...")
+    clasificacion_data = process_with_classifier_via_script(image_path, classifier_filter)
+    if not clasificacion_data.get("results"):
+        print(f"No se encontraron objetos.")
         return None
     
-    print(f"Detectados {len(fase2['results'])} objetos de tipo '{residue_name}'")
+    # Filtrar solo los objetos del tipo solicitado por el gesto
+    objetos_filtrados = [
+        obj for obj in clasificacion_data["results"] 
+        if obj.get("class", "").upper() == desired_class_name.upper()
+    ]
     
-    # Fase 3: detectar puntos (en memoria)
-    print("[DEBUG] Iniciando Fase 3: detección de puntos...")
-    points_data = get_detections_from_image(image_path)
-    print(f"[DEBUG] Fase 3 completada: {len(points_data.get('objetos', []))} puntos detectados")
+    if not objetos_filtrados:
+        print(f"No se encontraron objetos de tipo '{residue_name}' (se detectaron {len(clasificacion_data['results'])} objetos de otros tipos).")
+        return None
     
-    # Filtrar puntos (en memoria)
-    print(f"[DEBUG] Filtrando por clase: {desired_class_name}")
-    filtered_points = filter_points_by_classification(points_data, fase2, desired_class_name)
-    print(f"[DEBUG] Puntos filtrados: {len(filtered_points.get('objetos', []))}")
+    print(f"Detectados {len(objetos_filtrados)} objeto(s) de tipo '{residue_name}' (total objetos: {len(clasificacion_data['results'])})")
     
-    # Fase 4: medir y generar imagen final (con cálculo de altura)
-    print("[DEBUG] Iniciando Fase 4: medición ArUco...")
+    # Convertir resultados de clasificación a formato de puntos
+    # Usamos el centro del clasificador directamente Y MANTENEMOS LA CLASE REAL
+    points_data = {"imagen": image_path, "objetos": []}
+    for i, obj_class in enumerate(objetos_filtrados, start=1):
+        center = obj_class.get("center", {})
+        clase_real = obj_class.get("class", "DESCONOCIDO")  # Mantener clase real
+        points_data["objetos"].append({
+            "id": i,
+            "punto_central": {"x": center.get("x"), "y": center.get("y")},
+            "clase": clase_real  # NUEVO: guardar clase real del objeto
+        })
+    
+    print(f"[INFO] Usando centros de {len(points_data['objetos'])} objeto(s) de tipo '{residue_name}'")
+    
+    # Fase 2: Medir con ArUco y generar imagen final (con cálculo de altura)
+    print("[INFO] Iniciando medición ArUco...")
     results = measure_with_aruco(
         image_path, 
-        filtered_points, 
+        points_data, 
         aruco_mm=48.0, 
         dict_name="AUTO", 
-        clase_detectada=desired_class_name,
+        clase_detectada=None,  # No pasar clase fija, usar la clase de cada objeto
         img_cenital=foto,
         img_horizontal=img_horizontal
     )
-    print("[DEBUG] Pipeline completado")
+    print("[INFO] Pipeline completado")
     
     return results

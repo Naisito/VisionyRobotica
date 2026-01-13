@@ -1,16 +1,28 @@
 {
-  "imagen": "imagenes/temp_foto.png",
+  "imagen": "/home/laboratorio/ros_workspace/imagenes/temp_foto.png",
   "aruco": {
     "ids": [
       7
     ],
     "reference_id": 7,
     "center_px": {
-      "x": 929.9122314453125,
-      "y": 49.83186721801758
+      "x": 930.0946044921875,
+      "y": 49.877628326416016
     },
-    "avg_mm_per_px": 0.7246718422446958
+    "avg_mm_per_px": 0.7252164771626968
   },
-  "objetos": [],
+  "objetos": [
+    {
+      "id": 1,
+      "clase": "lata",
+      "punto_central": {
+        "x_px": 538,
+        "y_px": 204,
+        "x_mm": -284.35,
+        "y_mm": 111.77
+      },
+      "altura_mm": 0.0
+    }
+  ],
   "contenedores": []
 }

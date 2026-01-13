@@ -120,41 +120,26 @@ def process_items(items_list: List[Dict], det: Dict, mm_per_px: float) -> List[D
         if "tipo" in obj:
             obj_result["tipo"] = obj["tipo"]
         
-        punto_1_mm = None
-        punto_2_mm = None
+        # Mantener la clase del objeto si existe
+        if "clase" in obj:
+            obj_result["clase"] = obj["clase"]
         
-        for key in ["punto_central", "punto_1", "punto_2"]:
-            if key in obj:
-                pt = obj[key]
-                mm_coords = pixel_to_mm(
-                    pt["x"], pt["y"],
-                    det["center_px"],
-                    mm_per_px,
-                    0.0, 0.0,
-                    False, False
-                )
-                obj_result[key] = {
-                    "x_px": pt["x"],
-                    "y_px": pt["y"],
-                    "x_mm": round(mm_coords["x_mm"], 2),
-                    "y_mm": round(mm_coords["y_mm"], 2)
-                }
-                
-                if key == "punto_1":
-                    punto_1_mm = mm_coords
-                elif key == "punto_2":
-                    punto_2_mm = mm_coords
-        
-        if punto_1_mm and punto_2_mm:
-            dx = punto_2_mm["x_mm"] - punto_1_mm["x_mm"]
-            dy = punto_2_mm["y_mm"] - punto_1_mm["y_mm"]
-            dist = np.sqrt(dx*dx + dy*dy)
-            obj_result["distancia_punto1_punto2_mm"] = round(dist, 2)
-            
-            # Calcular ángulo de la línea punto_1 -> punto_2
-            angulo_rad = math.atan2(dy, dx)
-            angulo_deg = math.degrees(angulo_rad)
-            obj_result["angulo_grados"] = round(angulo_deg, 2)
+        # Solo procesamos el punto central (sin puntos de agarre)
+        if "punto_central" in obj:
+            pt = obj["punto_central"]
+            mm_coords = pixel_to_mm(
+                pt["x"], pt["y"],
+                det["center_px"],
+                mm_per_px,
+                0.0, 0.0,
+                False, False
+            )
+            obj_result["punto_central"] = {
+                "x_px": pt["x"],
+                "y_px": pt["y"],
+                "x_mm": round(mm_coords["x_mm"], 2),
+                "y_mm": round(mm_coords["y_mm"], 2)
+            }
             
         processed.append(obj_result)
     return processed

@@ -26,11 +26,11 @@ RESULT_JSON = os.path.join(PUNTOS_DIR, "resultados_mm.json")
 def leer_coordenadas_objetos() -> List[Dict[str, float]]:
     """
     Lee resultados_mm.json y devuelve una lista con las coordenadas
-    x_mm, y_mm del punto central, el ángulo y la altura de cada objeto.
+    x_mm, y_mm del punto central y la altura de cada objeto.
     
     Returns:
-        Lista de diccionarios con 'id', 'x', 'y', 'angulo', 'altura' para cada objeto.
-        Ejemplo: [{'id': 1, 'x': -285.16, 'y': -289.7, 'angulo': 84.86, 'altura': 120.5}, ...]
+        Lista de diccionarios con 'id', 'x', 'y', 'altura' para cada objeto.
+        Ejemplo: [{'id': 1, 'x': -285.16, 'y': -289.7, 'altura': 120.5}, ...]
     """
     if not os.path.exists(RESULT_JSON):
         rospy.logwarn(f"Archivo no encontrado: {RESULT_JSON}")
@@ -48,16 +48,14 @@ def leer_coordenadas_objetos() -> List[Dict[str, float]]:
         punto_central = obj.get("punto_central", {})
         x_mm = punto_central.get("x_mm")
         y_mm = punto_central.get("y_mm")
-        angulo = obj.get("angulo_grados")
-        altura_mm = obj.get("altura_mm", 0.0)  # NUEVO: altura del objeto
+        altura_mm = obj.get("altura_mm", 0.0)
         
-        if x_mm is not None and y_mm is not None and angulo is not None:
+        if x_mm is not None and y_mm is not None:
             coordenadas.append({
                 'id': obj.get('id'),
                 'x': x_mm,
                 'y': y_mm,
-                'angulo': angulo,
-                'altura': altura_mm  # NUEVO
+                'altura': altura_mm
             })
     
     return coordenadas
@@ -67,8 +65,8 @@ def coordenadas_to_array(coordenadas: List[Dict[str, float]]) -> Float32MultiArr
     """
     Convierte la lista de coordenadas a Float32MultiArray para publicar en ROS.
     
-    Formato del array: [id1, x1, y1, angulo1, altura1, id2, x2, y2, angulo2, altura2, ...]
-    Cada objeto ocupa 5 posiciones consecutivas.
+    Formato del array: [id1, x1, y1, altura1, id2, x2, y2, altura2, ...]
+    Cada objeto ocupa 4 posiciones consecutivas.
     """
     msg = Float32MultiArray()
     
@@ -76,22 +74,21 @@ def coordenadas_to_array(coordenadas: List[Dict[str, float]]) -> Float32MultiArr
     msg.layout.dim.append(MultiArrayDimension())
     msg.layout.dim[0].label = "objetos"
     msg.layout.dim[0].size = len(coordenadas)
-    msg.layout.dim[0].stride = len(coordenadas) * 5
+    msg.layout.dim[0].stride = len(coordenadas) * 4
     
     msg.layout.dim.append(MultiArrayDimension())
-    msg.layout.dim[1].label = "campos"  # id, x, y, angulo, altura
-    msg.layout.dim[1].size = 5
-    msg.layout.dim[1].stride = 5
+    msg.layout.dim[1].label = "campos"  # id, x, y, altura
+    msg.layout.dim[1].size = 4
+    msg.layout.dim[1].stride = 4
     
-    # Llenar datos: [id, x, y, angulo, altura] por cada objeto
+    # Llenar datos: [id, x, y, altura] por cada objeto
     data = []
     for coord in coordenadas:
         data.extend([
             float(coord.get('id', 0)),
             float(coord.get('x', 0)),
             float(coord.get('y', 0)),
-            float(coord.get('angulo', 0)),
-            float(coord.get('altura', 0))  # NUEVO: altura
+            float(coord.get('altura', 0))
         ])
     
     msg.data = data
@@ -130,22 +127,14 @@ class NodoObjetos:
         rospy.loginfo("NodoObjetos: Nodo iniciado y esperando gestos e imagen de cámara...")
 
     def _image_cb_cam1(self, msg):
-        # Solo guardar frames después de 5 segundos desde el inicio
-        if (rospy.Time.now() - self.tiempo_inicio).to_sec() < 5.0:
-            return
-        
-        rospy.sleep(10.0)
-        
+
         try:
             self.img_cam1 = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         except Exception as e:
             rospy.logerr(f"NodoObjetos: Error al convertir imagen cam1: {e}")
     
     def _image_cb_cam2(self, msg):
-        # # Solo guardar frames después de 5 segundos desde el inicio
-        # if (rospy.Time.now() - self.tiempo_inicio).to_sec() < 5.0:
-        #     return
-        rospy.sleep(10.0)
+
         try:
             self.img_cam2 = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         except Exception as e:
@@ -164,9 +153,29 @@ class NodoObjetos:
         
         self.procesando = True
         try:
-            imagen_cenital = deepcopy(self.img_cam1)
-            imagen_horizontal = deepcopy(self.img_cam2) if self.img_cam2 is not None else None
             residue_type = msg.data.lower().strip()
+            
+            # Esperar 2 segundos antes de capturar para que el objeto esté quieto
+            rospy.loginfo("NodoObjetos: Esperando 2 segundos antes de capturar...")
+            rospy.sleep(2.0)
+            
+            # Capturar imagen FRESCA de la cámara cenital
+            rospy.loginfo("NodoObjetos: Capturando imagen cenital...")
+            try:
+                img_msg_cenital = rospy.wait_for_message('/cam1/usb_cam1/image_raw', Image, timeout=2.0)
+                imagen_cenital = self.bridge.imgmsg_to_cv2(img_msg_cenital, desired_encoding='bgr8')
+            except Exception as e:
+                rospy.logerr(f"NodoObjetos: Error capturando imagen cenital: {e}")
+                return
+            
+            # Capturar imagen FRESCA de la cámara horizontal (opcional)
+            imagen_horizontal = None
+            try:
+                rospy.loginfo("NodoObjetos: Capturando imagen horizontal...")
+                img_msg_horizontal = rospy.wait_for_message('/cam2/usb_cam1/image_raw', Image, timeout=2.0)
+                imagen_horizontal = self.bridge.imgmsg_to_cv2(img_msg_horizontal, desired_encoding='bgr8')
+            except Exception as e:
+                rospy.logwarn(f"NodoObjetos: No se pudo capturar imagen horizontal: {e}")
             
             # Mapear gestos a tipos de residuo
             if residue_type not in ["lata", "carton", "botella"]:
@@ -185,14 +194,18 @@ class NodoObjetos:
             
             # Leer coordenadas del JSON y publicar
             coordenadas = leer_coordenadas_objetos()
+            
+            # DEBUG: Verificar cuántas coordenadas se leyeron
+            rospy.loginfo(f"[DEBUG nodoObjetos] Se leyeron {len(coordenadas)} coordenadas del JSON")
+            
             if coordenadas:
                 msg_array = coordenadas_to_array(coordenadas)
                 self.pub_coordenadas.publish(msg_array)
                 rospy.loginfo(f"NodoObjetos: Publicadas {len(coordenadas)} coordenadas de objetos.")
                 
-                # Log de alturas
+                # Log de coordenadas
                 for coord in coordenadas:
-                    rospy.loginfo(f"  Objeto ID={coord.get('id')}: x={coord.get('x'):.2f}, y={coord.get('y'):.2f}, altura={coord.get('altura'):.2f} mm")
+                    rospy.loginfo(f"  Objeto ID={coord.get('id')}: x={coord.get('x'):.2f} mm, y={coord.get('y'):.2f} mm, altura={coord.get('altura'):.2f} mm")
             else:
                 rospy.logwarn("NodoObjetos: No se encontraron objetos para publicar.")
         finally:
