@@ -132,3 +132,56 @@ El control de los robots se realizará utilizando el framework MoveIt! que abstr
 - Los contenedores comparten un directorio con el host. Todo cambio que se haga en este desde el contenedor se verá reflejado en el host y viceversa. Este directorio en el contenedor es: `/home/laboratorio/ros_workspace` y en el host depende de donde y cómo se haya creado el contenedor.
 - No confundir el host con el contenedor (estarán en instancias separadas de VSCode).
 - No lanzar docker compose down. Si se lanza, el contenedor se eliminará.
+
+## Sistema de Clasificación y Robótica
+
+Este proyecto implementa un sistema de clasificación y manipulación de residuos utilizando visión artificial y un brazo robótico. El sistema es capaz de identificar tipos de residuos (latas, cartones, botellas), localizar su posición en el espacio de trabajo y ordenar al robot que los recoja y los deposite en el contenedor correspondiente.
+
+### Arquitectura del Sistema (Topics)
+
+El sistema se basa en una arquitectura de nodos de ROS que se comunican entre sí mediante topics. Los principales nodos y su interacción son:
+
+1.  **`nodoCentral`**: Actúa como punto de entrada y orquestador simple.
+    -   **Suscribe**: `gesto` (std_msgs/String). Recibe el comando inicial (tipo de residuo).
+    -   **Publica**: `nc_gestos` (std_msgs/String). Reenvía el gesto validado a los demás nodos.
+
+2.  **`nodoObjetos`**: Encargado de la visión artificial.
+    -   **Suscribe**: `nc_gestos` (std_msgs/String). Se activa al recibir un gesto.
+    -   **Suscribe**: `/cam1/usb_cam1/image_raw` (sensor_msgs/Image). Cámara cenital para localización XY.
+    -   **Suscribe**: `/cam2/usb_cam1/image_raw` (sensor_msgs/Image). Cámara horizontal para estimación de altura.
+    -   **Publica**: `coordenadas_objetos` (std_msgs/Float32MultiArray). Envía la lista de objetos detectados con sus coordenadas (ID, X, Y, Altura).
+
+3.  **`nodoRobot`**: Controlador del brazo robótico (Universal Robots) y la pinza (RG2).
+    -   **Suscribe**: `nc_gestos` (std_msgs/String). Para saber qué tipo de residuo se va a manipular (determina el destino).
+    -   **Suscribe**: `coordenadas_objetos` (std_msgs/Float32MultiArray). Recibe las coordenadas donde debe ir a buscar los objetos.
+    -   **Acción**: Controla el robot mediante MoveIt! y la pinza mediante acciones.
+
+### Flujo de Visión y Robótica
+
+El proceso completo desde la orden hasta la ejecución física sigue estos pasos:
+
+1.  **Activación (Gesto)**:
+    -   El sistema recibe un mensaje en el topic `gesto` con el tipo de residuo (ej. "lata", "carton", "botella").
+    -   `nodoCentral` lo recibe y lo retransmite a `nc_gestos`.
+
+2.  **Visión y Localización (`nodoObjetos`)**:
+    -   Al recibir el mensaje en `nc_gestos`, espera unos segundos para asegurar que la escena es estable.
+    -   **Captura**: Toma imágenes de las cámaras cenital y horizontal.
+    -   **Procesamiento (Pipeline)**:
+        -   **Clasificación**: Identifica los objetos en la imagen que coinciden con el tipo de residuo solicitado.
+        -   **Detección de Puntos**: Calcula los puntos de agarre óptimos.
+        -   **Filtrado**: Selecciona solo los objetos relevantes.
+        -   **Medición ArUco**: Utiliza marcadores ArUco en la mesa para transformar las coordenadas de píxeles a milímetros reales.
+    -   **Publicación**: Envía las coordenadas calculadas al topic `coordenadas_objetos`.
+
+3.  **Manipulación Robótica (`nodoRobot`)**:
+    -   Recibe las coordenadas del objeto.
+    -   **Aproximación**: Mueve el robot a la posición (X, Y) del objeto.
+    -   **Agarre**:
+        -   Desciende en Z (ajustado según la altura detectada del objeto).
+        -   Cierra la pinza.
+    -   **Transporte**:
+        -   Sube el brazo.
+        -   Se mueve a la posición predefinida para el tipo de residuo (zona de basura correspondiente).
+    -   **Depósito**: Abre la pinza para soltar el objeto.
+    -   **Retorno**: Vuelve a la posición de HOME, listo para el siguiente ciclo.
